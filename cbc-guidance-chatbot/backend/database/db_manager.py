@@ -45,23 +45,22 @@ class DatabaseManager:
     
     def __init__(self):
         #initialize database connection
-        # Get credentials
-        db_host = os.getenv("DB_HOST", "localhost")
-        db_name = os.getenv("DB_NAME", "cbc_chatbot")
-        db_user = os.getenv("DB_USER", "postgres")
-        db_password = os.getenv("DB_PASSWORD", "")
-        db_port = os.getenv("DB_PORT", "5432")
-        
-        print(f"DEBUG: Connecting to {db_host}:{db_port}/{db_name} as {db_user}")
-        print(f"DEBUG: Password length: {len(db_password)}")
-        
-        self.conn = psycopg2.connect(
-            host=db_host,
-            database=db_name,
-            user=db_user,
-            password=db_password,
-            port=db_port
-        )
+        database_url = os.getenv("DATABASE_URL")
+        if database_url:
+            self.conn = psycopg2.connect(database_url)
+        else:
+            db_host = os.getenv("DB_HOST", "localhost")
+            db_name = os.getenv("DB_NAME", "cbc_chatbot")
+            db_user = os.getenv("DB_USER", "postgres")
+            db_password = os.getenv("DB_PASSWORD", "")
+            db_port = os.getenv("DB_PORT", "5432")
+            self.conn = psycopg2.connect(
+                host=db_host,
+                database=db_name,
+                user=db_user,
+                password=db_password,
+                port=db_port
+            )
         self._ensure_user_columns()
         self._ensure_profile_columns()
         self._ensure_analytics_constraints()
@@ -170,13 +169,17 @@ class DatabaseManager:
             county_upper = self._normalize_county(county)
             
             # Use fresh connection to avoid transaction issues
-            fresh_conn = psycopg2.connect(
-                host=os.getenv("DB_HOST", "localhost"),
-                database=os.getenv("DB_NAME", "cbc_chatbot"),
-                user=os.getenv("DB_USER", "postgres"),
-                password=os.getenv("DB_PASSWORD"),
-                port=os.getenv("DB_PORT", "5432")
-            )
+            database_url = os.getenv("DATABASE_URL")
+            if database_url:
+                fresh_conn = psycopg2.connect(database_url)
+            else:
+                fresh_conn = psycopg2.connect(
+                    host=os.getenv("DB_HOST", "localhost"),
+                    database=os.getenv("DB_NAME", "cbc_chatbot"),
+                    user=os.getenv("DB_USER", "postgres"),
+                    password=os.getenv("DB_PASSWORD"),
+                    port=os.getenv("DB_PORT", "5432")
+                )
             
             with fresh_conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 # Use ILIKE for case-insensitive substring match since pathways_offered is a string
@@ -763,13 +766,17 @@ class DatabaseManager:
         """Get user profile combined with user info with transaction safety"""
         try:
             # Use fresh connection to avoid transaction issues
-            fresh_conn = psycopg2.connect(
-                host=os.getenv("DB_HOST", "localhost"),
-                database=os.getenv("DB_NAME", "cbc_chatbot"),
-                user=os.getenv("DB_USER", "postgres"),
-                password=os.getenv("DB_PASSWORD"),
-                port=os.getenv("DB_PORT", "5432")
-            )
+            database_url = os.getenv("DATABASE_URL")
+            if database_url:
+                fresh_conn = psycopg2.connect(database_url)
+            else:
+                fresh_conn = psycopg2.connect(
+                    host=os.getenv("DB_HOST", "localhost"),
+                    database=os.getenv("DB_NAME", "cbc_chatbot"),
+                    user=os.getenv("DB_USER", "postgres"),
+                    password=os.getenv("DB_PASSWORD"),
+                    port=os.getenv("DB_PORT", "5432")
+                )
             
             with fresh_conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
