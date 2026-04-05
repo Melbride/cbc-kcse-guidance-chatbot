@@ -1170,6 +1170,7 @@ function navigate(page) {
 function checkAuth() {
   const userId = localStorage.getItem('userId');
   const path = window.location.pathname;
+  console.log('DEBUG PATH:', path); // ADD THIS LINE
   const isPublic = path.includes('index.html') || 
                    path.includes('login.html') || 
                    path.includes('signup.html') ||
