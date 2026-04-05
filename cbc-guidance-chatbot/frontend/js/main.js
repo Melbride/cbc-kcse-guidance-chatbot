@@ -1,6 +1,11 @@
 // Backend-Connected Functions for CBC Chatbot
 const API_BASE = 'https://cbc-kcse-guidance-chatbot.onrender.com';const THEME_KEY = 'uiTheme';
 
+function navigate(page) {
+  const base = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
+  window.location = base + page;
+}
+
 function getStoredTheme() {
   try {
     const value = localStorage.getItem(THEME_KEY);
@@ -260,7 +265,7 @@ function openPendingStage(stage) {
   const missing = getMissingFieldsForStage(profile, stage);
   localStorage.setItem('userStage', stage);
   localStorage.setItem('pendingStageMissing', JSON.stringify({ stage, missing }));
-  window.location = 'profile.html';
+  navigate('profile.html');
 }
 
 function renderStageProgressPanel(profile) {
@@ -376,7 +381,7 @@ async function login() {
       if (!userData.exists) {
         // User doesn't exist, redirect to signup
         alert('No account found with this email. Please create an account first.');
-        window.location = 'signup.html';
+        navigate('signup.html');
         return;
       }
       
@@ -396,17 +401,17 @@ async function login() {
 
       if (postLoginRedirect) {
         clearPostLoginRedirect();
-        window.location = postLoginRedirect;
+        navigate(postLoginRedirect);
         return;
       }
 
       if (!profile.journey_stage) {
-        window.location = 'stage.html';
+        navigate('stage.html');
       } else if (!isStageComplete(profile, stage)) {
         // Only ask for missing details of the user's current stage.
-        window.location = 'profile.html';
+        navigate('profile.html');
       } else {
-        window.location = 'dashboard.html';
+        navigate('dashboard.html');
       }
       
     } else {
@@ -448,7 +453,7 @@ async function signUp() {
       localStorage.setItem('profileOwnerUserId', data.user_id);
       alert(`Account created successfully! Welcome, ${data.name}!`);
       // New users should choose stage first.
-      window.location = 'stage.html';
+      navigate('stage.html');
     } else {
       alert('Sign up failed');
     }
@@ -703,7 +708,7 @@ async function selectStage(stage) {
   
   if (!userId) {
     alert('Please login first');
-    window.location = 'login.html';
+    navigate('login.html');
     return;
   }
 
@@ -715,12 +720,12 @@ async function selectStage(stage) {
 
   // If this stage is already complete, continue directly to chat.
   if (isStageComplete(existing, stage)) {
-    window.location = 'chat.html';
+    navigate('chat.html');
     return;
   }
   
   // Redirect to profile page
-  window.location = 'profile.html';
+  navigate('profile.html');
 }
 
 // Profile Info Display
@@ -793,7 +798,7 @@ async function saveProfile() {
   
   if (!userId || !stage) {
     alert('Missing user information. Please start again.');
-    window.location = 'dashboard.html';
+    navigate('dashboard.html');
     return;
   }
 
@@ -907,7 +912,7 @@ async function saveProfile() {
       saveStoredProfile(frontendProfile);
       localStorage.removeItem('pendingStageMissing');
       alert('Profile saved successfully! Let\'s start your personalized guidance.');
-      window.location = 'chat.html';
+      navigate('chat.html');
     } else {
       throw new Error('Failed to save profile');
     }
@@ -924,7 +929,7 @@ async function selectPathway(pathway) {
   
   if (!userId) {
     alert('Please login first');
-    window.location = 'login.html';
+    navigate('login.html');
     return;
   }
 
@@ -1161,23 +1166,20 @@ async function displaySchools() {
 // Check authentication on page load
 function checkAuth() {
   const userId = localStorage.getItem('userId');
-  const currentPage = window.location.pathname;
+  const path = window.location.pathname;
+  const publicPages = ['index.html', 'login.html', 'signup.html', '/'];
+  const isPublic = publicPages.some(page => path.includes(page)) || path.endsWith('/frontend/');
   
-  // Pages that require authentication
-  const protectedPages = ['dashboard.html', 'profile.html'];
-  
-  // Pages that are accessible without authentication
-  const publicPages = ['index.html', 'login.html', 'signup.html', 'chat.html'];
-  
-  // If on protected page without userId, redirect to login
-  if (protectedPages.includes(currentPage) && !userId) {
-    window.location = 'login.html';
+  if (!userId && !isPublic) {
+    const base = path.substring(0, path.lastIndexOf('/') + 1);
+    window.location = base + 'login.html';
     return false;
   }
   
   // If userId exists but on login/signup page, redirect to dashboard
-  if (userId && (currentPage.includes('login.html') || currentPage.includes('signup.html'))) {
-    window.location = 'dashboard.html';
+  if (userId && (path.includes('login.html') || path.includes('signup.html'))) {
+    const base = path.substring(0, path.lastIndexOf('/') + 1);
+    window.location = base + 'dashboard.html';
     return false;
   }
   
@@ -1194,15 +1196,7 @@ function logout() {
   localStorage.removeItem('pendingStageMissing');
   localStorage.removeItem('profileOwnerUserId');
   clearPostLoginRedirect();
-  window.location = 'index.html';
-localStorage.removeItem('userEmail');
-localStorage.removeItem('userName');
-localStorage.removeItem('userProfile');
-localStorage.removeItem('userStage');
-localStorage.removeItem('pendingStageMissing');
-localStorage.removeItem('profileOwnerUserId');
-clearPostLoginRedirect();
-window.location = 'index.html';
+  navigate('index.html');
 }
 
 // ============================================================
