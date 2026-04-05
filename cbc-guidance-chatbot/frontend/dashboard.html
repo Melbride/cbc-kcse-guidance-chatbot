@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — CBC Guide</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/theme.css">
+  <script src="js/theme.js" defer></script>
+</head>
+<body>
+<div class="app-layout">
+  <nav id="app-sidebar" class="sidebar"></nav>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <div class="main-content">
+    <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+    <div class="page-header dash-header-bg">
+      <h1>Dashboard</h1>
+      <p id="dash-greeting">Welcome back! Here's your guidance hub.</p>
+    </div>
+    <div class="page-body">
+
+      <!-- Feature Cards -->
+      <div class="dash-grid">
+        <div class="dash-card">
+          <div class="dash-card-icon ic-green">PG</div>
+          <h3>Personalized Guidance</h3>
+          <p>Get personalized CBC pathway recommendations based on your preferences.</p>
+          <a href="stage.html" class="dash-card-btn">
+            Begin Guidance
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </a>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-icon ic-blue">QC</div>
+          <h3>Quick Chat</h3>
+          <p>Ask any question about CBC, pathways, careers, or subjects instantly.</p>
+          <a href="chat.html" class="dash-card-btn">
+            Open chat
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </a>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-icon ic-purple">FS</div>
+          <h3>School Search</h3>
+          <p>Browse and filter senior schools offering your preferred CBC pathway.</p>
+          <a href="schools.html" class="dash-card-btn">
+            Find schools
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </a>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-icon ic-orange">EP</div>
+          <h3>Explore Pathways</h3>
+          <p>Learn about STEM, Social Sciences, and Arts & Sports Senior School pathways.</p>
+          <a href="pathway.html" class="dash-card-btn">
+            Explore pathways
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </a>
+        </div>
+      </div>
+
+      <!-- Stage Progress (Secondary) -->
+      <div id="stage-progress-panel" class="stage-progress" style="display:none; margin-top: 32px;">
+        <div class="stage-progress-title">Your Progress</div>
+        <div id="stage-progress-content"></div>
+        <div class="stage-progress-action">
+          <a href="stage.html" class="btn btn-sm btn-outline-primary">Update Profile</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<script src="js/main.js"></script>
+</body>
+</html>

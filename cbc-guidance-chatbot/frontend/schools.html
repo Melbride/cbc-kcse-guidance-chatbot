@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Find Schools — CBC Guide</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/theme.css">
+  <script src="js/theme.js" defer></script>
+</head>
+<body>
+<div class="app-layout">
+  <nav id="app-sidebar" class="sidebar"></nav>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <div class="main-content">
+    <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+    <div class="page-header">
+      <h1>Find Schools</h1>
+      <p>Browse CBC senior schools by pathway, county, and type.</p>
+    </div>
+    <div class="page-body">
+      <div class="schools-filter-bar">
+        <input id="schools-search" class="schools-search" type="text" placeholder="Search school name or county...">
+        <select id="schools-pathway" class="schools-select">
+          <option value="">All Pathways</option>
+          <option value="STEM">STEM</option>
+          <option value="SOCIAL SCIENCES">Social Sciences</option>
+          <option value="ARTS & SPORTS">Arts & Sports</option>
+        </select>
+        <input id="schools-county" class="schools-select" type="text" placeholder="County (optional)">
+        <select id="schools-type" class="schools-select">
+          <option value="">All Types</option>
+          <option value="PUBLIC">Public</option>
+          <option value="PRIVATE">Private</option>
+        </select>
+        <select id="schools-gender" class="schools-select">
+          <option value="">All Genders</option>
+          <option value="MIXED">Mixed</option>
+          <option value="BOYS">Boys</option>
+          <option value="GIRLS">Girls</option>
+        </select>
+        <button id="schools-apply" class="filter-pill active" type="button">Apply</button>
+        <button id="schools-clear" class="filter-pill" type="button">Clear</button>
+      </div>
+
+      <div id="schools-summary" class="schools-summary"></div>
+      <div id="schools-list"></div>
+      <div id="schools-pagination" class="schools-pagination"></div>
+    </div>
+  </div>
+</div>
+<script src="js/main.js"></script>
+</body>
+</html>

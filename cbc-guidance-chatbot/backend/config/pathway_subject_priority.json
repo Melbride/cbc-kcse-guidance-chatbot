@@ -1,0 +1,52 @@
+{
+  "stem": {
+    "advanced mathematics": 6,
+    "physics": 5,
+    "chemistry": 5,
+    "computer studies": 4,
+    "computer science": 4,
+    "biology": 4,
+    "aviation": 3,
+    "building construction": 3,
+    "electricity": 3,
+    "general science": 3,
+    "marine & fisheries": 3,
+    "media technology": 3,
+    "power mechanics": 2,
+    "woodwork": 2,
+    "metal work": 2,
+    "agriculture": 2,
+    "home science": 1,
+    "geography": 1,
+    "business studies": 0
+  },
+  "social sciences": {
+    "history & citizenship": 5,
+    "geography": 5,
+    "literature in english": 4,
+    "fasihi ya kiswahili": 4,
+    "business studies": 4,
+    "cre/ire/hre": 3,
+    "arabic": 3,
+    "french": 3,
+    "german": 3,
+    "mandarin": 3,
+    "sign language": 3,
+    "indigenous language": 3,
+    "computer studies": 2,
+    "computer science": 2,
+    "advanced mathematics": 1
+  },
+  "arts & sports": {
+    "music & dance": 5,
+    "theatre & film": 5,
+    "fine arts": 5,
+    "sports & recreation": 5,
+    "home science": 3,
+    "computer studies": 2,
+    "computer science": 2,
+    "business studies": 2,
+    "literature in english": 2,
+    "fasihi ya kiswahili": 2
+  }
+}

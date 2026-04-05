@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - KCSE Guidance AI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/theme.css?v=20260404">
+    <script src="js/theme.js" defer></script>
+</head>
+<body class="auth-page">
+    <!-- Header -->
+    <div class="chat-topbar" style="background: linear-gradient(90deg, var(--kcse-sidebar-bg) 0%, #102b57 100%); box-shadow: 0 2px 8px rgba(30,58,138,0.04); padding: 0.8rem 0;">
+      <div class="chat-topbar-main" style="display: flex; align-items: center; gap: 1.2rem; max-width: 1200px; margin: 0 auto;">
+        <div class="chat-topbar-icon" style="width: 38px; height: 38px; border-radius: 10px; background: var(--kcse-primary); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.3rem;">AI</div>
+        <div class="chat-topbar-info">
+          <h2 style="margin: 0; font-size: 1.35rem; font-weight: 700; color: #fff; letter-spacing: -0.01em;">KCSE Guidance Admin</h2>
+          <p style="margin: 0; color: #dbe7ff; font-size: 1rem; font-weight: 400;">Admin login and management</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card shadow landing-card">
+                    <div class="card-body">
+                        <h3 class="card-title text-center mb-4 landing-card-title">Admin Login</h3>
+                        <form id="admin-login-form">
+                            <input type="email" class="form-control mb-3" id="admin-email" placeholder="Admin Email" required>
+                            <input type="password" class="form-control mb-3" id="admin-password" placeholder="Admin Password" required>
+                            <button type="submit" id="admin-login-btn" class="btn btn-primary landing-btn-primary w-100">Admin Login</button>
+                        </form>
+                        <div id="admin-login-msg" class="mt-3 text-center"></div>
+                        <div class="mt-3 text-center">
+                            <span><a href="signin.html">User Login</a> | <a href="landing.html">Back to Home</a></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="site-footer mt-5">
+        <div class="container">
+            <div class="row row-cols-1 row-cols-md-3 g-4">
+                <div class="col footer-col">
+                    <div class="footer-brand">KCSE Guidance AI</div>
+                    <p class="footer-desc">Empowering Kenyan students with personalized academic and career guidance.</p>
+                </div>
+                <div class="col footer-col">
+                    <h6>Legal</h6>
+                    <ul>
+                        <li><a href="#">Privacy Policy</a></li>
+                        <li><a href="#">Terms of Use</a></li>
+                    </ul>
+                </div>
+                <div class="col footer-col">
+                    <h6>Contact</h6>
+                    <div class="footer-contact mb-2">
+                        <div class="d-flex align-items-center mb-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="1.2em" height="1.2em" fill="currentColor" viewBox="0 0 16 16" class="me-2"><path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2zm13 2.383-4.708 2.825L15 11.118V5.383zM14.803 12H1.197l4.905-4.174.765.459a1 1 0 0 0 1.066 0l.765-.459L14.803 12zM1 11.118l4.708-2.91L1 5.383v5.735z"/></svg>
+                            <a href="mailto:melbrideb@gmail.com">melbrideb@gmail.com</a>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="1.2em" height="1.2em" fill="currentColor" viewBox="0 0 16 16" class="me-2"><path d="M3.654 1.328a.678.678 0 0 1 .252-.282c.282-.183.65-.16.888.06l2.29 2.1c.329.302.445.802.267 1.21l-.547 1.21a.678.678 0 0 1-.746.39l-1.013-.23a11.72 11.72 0 0 0 5.516 5.516l-.23-1.013a.678.678 0 0 1 .39-.746l1.21-.547c.408-.178.908-.062 1.21.267l2.1 2.29c.22.238.243.606.06.888a13.684 13.684 0 0 1-2.01 2.01c-.238.22-.606.243-.888.06a15.978 15.978 0 0 1-7.01-7.01c-.183-.282-.16-.65.06-.888a13.684 13.684 0 0 1 2.01-2.01z"/></svg>
+                            <a href="tel:0790117305">0790117305</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom mt-4">
+                &copy; 2026 KCSE Guidance AI. All rights reserved.
+            </div>
+        </div>
+    </footer>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const adminToken = localStorage.getItem('adminToken');
+        const adminUser = localStorage.getItem('adminUser');
+        if (adminToken && adminUser) {
+            window.location.href = 'admin-dashboard.html';
+        }
+
+        document.getElementById('admin-login-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const msgDiv = document.getElementById('admin-login-msg');
+            const submitBtn = document.getElementById('admin-login-btn');
+            msgDiv.textContent = '';
+            msgDiv.className = 'mt-3 text-center';
+            
+            const email = document.getElementById('admin-email').value;
+            const password = document.getElementById('admin-password').value;
+            
+            try {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Signing in...';
+                const response = await fetch('http://localhost:8000/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    localStorage.setItem('adminToken', data.token);
+                    localStorage.setItem('adminUser', JSON.stringify(data.admin));
+                    window.location.href = 'admin-dashboard.html';
+                } else {
+                    msgDiv.classList.add('text-danger');
+                    msgDiv.textContent = data.detail || 'Admin login failed';
+                }
+            } catch (error) {
+                msgDiv.classList.add('text-danger');
+                msgDiv.textContent = 'Cannot reach the admin backend on http://localhost:8000.';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Admin Login';
+            }
+        });
+    </script>
+</body>
+</html>

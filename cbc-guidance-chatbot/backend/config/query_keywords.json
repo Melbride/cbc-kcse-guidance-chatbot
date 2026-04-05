@@ -1,0 +1,107 @@
+{
+  "school_listing_keywords": [
+    "which schools", "schools offering", "schools that offer", "schools in",
+    "list of schools", "find schools", "show me schools", "schools available",
+    "schools with", "schools near", "schools offer", "good schools",
+    "best schools", "recommend schools", "looking for schools", "want schools",
+    "i need schools"
+  ],
+
+  "combination_keywords": [
+    "subject combinations", "subjects for", "subjects needed", "subjects under",
+    "which subjects", "subjects in", "subjects available in",
+    "what subjects are offered", "subjects offered in", "combination of subjects",
+    "subject combination", "what combinations", "available combinations",
+    "combinations for", "subjects can i take", "subjects can i study",
+    "what subjects can i", "what subjects do i need",
+    "subjects do i need for", "do i need for"
+  ],
+
+  "continuation_keywords": [
+    "show more", "more options", "more combinations", "next", "continue",
+    "full list", "all combinations"
+  ],
+
+  "stem_track_keywords": [
+    "pure sciences", "applied sciences", "technical & engineering",
+    "technical and engineering", "career & technical studies", "cts"
+  ],
+
+  "career_keywords": [
+    "career", "what careers", "jobs", "what can i pursue", "what can i become"
+  ],
+
+  "subject_count_keywords": [
+    "how many subjects", "number of subjects", "how many learning areas",
+    "minimum subjects", "maximum subjects", "subjects can i take"
+  ],
+
+  "cbc_level_tokens": [
+    "ee1", "ee2", "me1", "me2", "ae1", "ae2", "be1", "be2"
+  ],
+
+  "cbc_level_phrases": [
+    "performance level", "what does ee", "what does me", "what does ae",
+    "what does be", "exceeding expectation", "meeting expectation",
+    "approaching expectation", "below expectation",
+    "what do the descriptions mean", "cbc performance"
+  ],
+
+  "personalized_keywords": [
+    "i'm good at", "i am good at", "i'm strong in", "i am strong in",
+    "i'm weak at", "i am weak at", "not sure about", "what should i do",
+    "what should i choose", "which pathway suits me", "which pathway fits me",
+    "based on my strengths", "help me choose", "help choosing my pathway"
+  ],
+
+  "pathway_explanation_triggers": [
+    "tell me about", "tell me more about", "explain", "what is",
+    "information about", "how does"
+  ],
+
+  "pathway_explanation_targets": [
+    "stem pathway", "social sciences pathway", "arts & sports pathway",
+    "stem", "social sciences", "arts & sports", "pathway", "cbc pathway"
+  ],
+
+  "subject_explanation_triggers": [
+    "tell me about", "tell me more about", "explain", "what is",
+    "information about"
+  ],
+
+  "general_subject_keywords": [
+    "what subjects", "subjects offered", "available subjects"
+  ],
+
+  "interest_school_keywords": [
+    "interested in", "looking for", "want to find", "need to find"
+  ],
+
+  "school_name_keywords": [
+    "find school", "search school", "school name", "locate school"
+  ],
+
+  "pathway_context_keywords": {
+    "social sciences": [
+      "humanities", "business studies", "economics", "law", "languages",
+      "literature", "history", "diplomacy", "journalism"
+    ],
+    "arts & sports": [
+      "music", "dance", "drama", "fine arts", "theatre", "creative arts",
+      "sports", "athletics", "film", "performing arts"
+    ],
+    "stem": [
+      "engineering", "medicine", "computer science", "technology",
+      "mathematics", "physics", "chemistry", "biology", "aviation",
+      "agriculture", "building", "electricity"
+    ]
+  },
+
+  "personal_indicators": [
+    "my profile", "my interests", "my scores", "recommend for me",
+    "what should i choose", "based on my", "suggest for me",
+    "my strengths", "i'm good at", "i am good at", "i'm strong in",
+    "i am strong in", "i'm weak at", "i am weak at", "not sure about",
+    "which pathway suits me", "which pathway fits me", "help me choose"
+  ]
+}

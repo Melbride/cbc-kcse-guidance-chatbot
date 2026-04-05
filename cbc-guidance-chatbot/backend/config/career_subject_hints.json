@@ -1,0 +1,74 @@
+{
+  "profile_interest_to_career_keyword": {
+    "interest_healthcare":  "health",
+    "interest_agriculture": "agriculture",
+    "interest_technology":  "technology",
+    "interest_business":    "business",
+    "interest_media":       "media",
+    "interest_arts":        "art",
+    "interest_music":       "music",
+    "interest_dance":       "dance",
+    "interest_sports":      "sports",
+    "interest_stem":        "engineering",
+    "interest_creative":    "film",
+    "interest_social":      "diplomacy",
+    "interest_writing":     "journalism",
+    "interest_visual_arts": "design"
+  },
+
+  "career_to_pathway": {
+    "engineering":   "stem",
+    "computer":      "stem",
+    "software":      "stem",
+    "technology":    "stem",
+    "medicine":      "stem",
+    "doctor":        "stem",
+    "health":        "stem",
+    "nursing":       "stem",
+    "pharmacy":      "stem",
+    "agriculture":   "stem",
+    "aviation":      "stem",
+    "architecture":  "stem",
+    "law":           "social sciences",
+    "journalism":    "social sciences",
+    "media":         "social sciences",
+    "business":      "social sciences",
+    "economics":     "social sciences",
+    "diplomacy":     "social sciences",
+    "public policy": "social sciences",
+    "music":         "arts & sports",
+    "art":           "arts & sports",
+    "design":        "arts & sports",
+    "film":          "arts & sports",
+    "acting":        "arts & sports",
+    "sports":        "arts & sports",
+    "athlete":       "arts & sports",
+    "dance":         "arts & sports"
+  },
+
+  "avg_field_to_strength_label": {
+    "mathematics_avg":      "User is strong in Mathematics",
+    "science_avg":          "User is strong in Science",
+    "english_avg":          "User is strong in English",
+    "kiswahili_avg":        "User is strong in Kiswahili",
+    "social_studies_avg":   "User is strong in Social Studies",
+    "business_studies_avg": "User is strong in Business Studies"
+  },
+
+  "interest_field_to_label": {
+    "interest_stem":        "STEM",
+    "interest_arts":        "Arts",
+    "interest_social":      "Social Sciences",
+    "interest_visual_arts": "Visual Arts",
+    "interest_music":       "Music",
+    "interest_writing":     "Writing",
+    "interest_technology":  "Technology",
+    "interest_business":    "Business",
+    "interest_agriculture": "Agriculture",
+    "interest_healthcare":  "Healthcare",
+    "interest_media":       "Media",
+    "interest_creative":    "Creative Arts",
+    "interest_dance":       "Dance",
+    "interest_sports":      "Sports"
+  }
+}

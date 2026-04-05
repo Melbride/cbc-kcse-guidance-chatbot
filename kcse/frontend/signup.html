@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up - KCSE Guidance Chatbot</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/landing.css">
+    <link rel="stylesheet" href="css/theme.css?v=20260404">
+    <link rel="stylesheet" href="css/style.css?v=20260404">
+    <script src="js/theme.js" defer></script>
+</head>
+<body class="auth-page">
+    <!-- Header -->
+    <header class="landing-navbar">
+        <div class="container">
+            <div class="landing-nav-wrap">
+                <a class="landing-navbar-brand" href="landing.html">KCSE Guidance AI</a>
+                <nav class="landing-nav-links">
+                    <a href="landing.html#about">About</a>
+                    <a href="landing.html#features">Features</a>
+                    <a href="landing.html#contact">Contact</a>
+                </nav>
+                <div class="landing-nav-actions">
+                    <a href="signin.html" class="landing-nav-login">Sign In</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8 col-lg-7">
+                <div class="card shadow">
+                    <div class="card-body">
+                        <h3 class="card-title text-center mb-4">Sign Up</h3>
+                        <form id="signup-form">
+                            <input type="text" class="form-control mb-3" id="signup-name" placeholder="Full Name" required>
+                            <input type="email" class="form-control mb-3" id="signup-email" placeholder="Email" required>
+                            <div class="input-group mb-3">
+                                <input type="password" class="form-control" id="signup-password" placeholder="Password" required>
+                                <button type="button" class="btn btn-outline-secondary password-toggle" data-target="signup-password" aria-label="Show password" aria-pressed="false">
+                                    <svg class="password-eye-open" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+                                        <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8ZM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.12 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8Z"/>
+                                        <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5ZM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0Z"/>
+                                    </svg>
+                                    <svg class="password-eye-closed d-none" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+                                        <path d="M13.359 11.238 15 12.879l-.707.707-1.81-1.81A8.97 8.97 0 0 1 8 13.5C3 13.5 0 8 0 8a15.74 15.74 0 0 1 3.292-3.912L1 1.793l.707-.707 13 13-.707.707-1.641-1.641ZM11.297 10.59l-1.307-1.307a2.5 2.5 0 0 1-3.273-3.273L5.41 4.703A13.504 13.504 0 0 0 1.173 8C2.272 9.465 4.756 12.5 8 12.5a7.98 7.98 0 0 0 3.297-.71ZM7.733 6.319l1.948 1.948a1.5 1.5 0 0 0-1.948-1.948Z"/>
+                                        <path d="M8 3.5c3.244 0 5.728 3.035 6.827 4.5a13.245 13.245 0 0 1-1.636 1.954l-.715-.715A12.206 12.206 0 0 0 14.828 8c-1.099-1.465-3.583-4.5-6.828-4.5-.79 0-1.53.18-2.214.495l-.777-.777A7.97 7.97 0 0 1 8 3.5Z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <select class="form-select mb-3" id="signup-mean-grade" required>
+                                <option value="">Select Mean Grade</option>
+                                <option value="A">A</option>
+                                <option value="A-">A-</option>
+                                <option value="B+">B+</option>
+                                <option value="B">B</option>
+                                <option value="B-">B-</option>
+                                <option value="C+">C+</option>
+                                <option value="C">C</option>
+                                <option value="C-">C-</option>
+                                <option value="D+">D+</option>
+                                <option value="D">D</option>
+                                <option value="D-">D-</option>
+                                <option value="E">E</option>
+                            </select>
+                            <input type="text" class="form-control mb-3" id="signup-interests" placeholder="Interests e.g. technology, business, medicine">
+                            <textarea class="form-control mb-3" id="signup-career-goals" rows="3" placeholder="Career goals"></textarea>
+
+                            <!-- Subjects Section -->
+                            <div id="subject-inputs" class="mb-3">
+                                <label class="form-label">Subjects (7 required, optional 8th):</label>
+                                <div id="subjects-container"></div>
+                                <button type="button" id="add-subject" class="btn btn-sm btn-outline-primary mt-2">+ Add Subject</button>
+                            </div>
+
+                                <style>
+                                    .subject-row {
+                                        margin-bottom: 1rem !important;
+                                    }
+                                    .subject-row select.form-select {
+                                        padding: 0.5rem 1rem;
+                                    }
+                                    .subject-row .col-7 {
+                                        padding-right: 8px;
+                                    }
+                                    .subject-row .col-5 {
+                                        padding-left: 8px;
+                                    }
+                                </style>
+                            <button type="submit" class="btn btn-primary w-100">Create Account</button>
+                        </form>
+
+                        <div id="signup-msg" class="mt-3 text-danger text-center"></div>
+                        <div class="mt-3 text-center">
+                            <span>Already have an account? <a href="signin.html">Sign In</a></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+// --- Dropdown subjects setup ---
+const subjectsList = [
+    "Mathematics", "English", "Kiswahili", "Chemistry", "Physics", "Biology", 
+    "Geography", "History & Government", "CRE/IRE", "Agriculture", 
+    "Business Studies", "Computer Studies", "Home Science"
+];
+
+const grades = ["A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "D-", "E"];
+
+const container = document.getElementById("subjects-container");
+const addBtn = document.getElementById("add-subject");
+
+function createSubjectRow() {
+    const row = document.createElement("div");
+    row.className = "row g-2 mb-2 subject-row";
+
+    row.innerHTML = `
+        <div class="col-7">
+            <select class="form-select subject-name" required>
+                <option value="">Select Subject</option>
+                ${subjectsList.map(s => `<option>${s}</option>`).join("")}
+            </select>
+        </div>
+        <div class="col-5">
+            <select class="form-select subject-grade" required>
+                <option value="">Grade</option>
+                ${grades.map(g => `<option>${g}</option>`).join("")}
+            </select>
+        </div>
+    `;
+    container.appendChild(row);
+}
+
+// Initial 7 rows
+for (let i = 0; i < 7; i++) {
+    createSubjectRow();
+}
+
+// Optional 8th row
+    addBtn.addEventListener("click", () => {
+        const rowCount = document.querySelectorAll(".subject-row").length;
+        if (rowCount < 8) {
+            createSubjectRow();
+            if (rowCount + 1 >= 8) {
+                addBtn.style.display = "none";
+            }
+        }
+    });
+    // Hide add button if already 8 rows on load (edge case)
+    if (document.querySelectorAll(".subject-row").length >= 8) {
+        addBtn.style.display = "none";
+    }
+
+// --- Form submission ---
+const signupForm = document.getElementById("signup-form");
+const signupMsg = document.getElementById("signup-msg");
+
+document.querySelectorAll(".password-toggle").forEach(button => {
+    button.addEventListener("click", function() {
+        const targetId = this.getAttribute("data-target");
+        const passwordInput = document.getElementById(targetId);
+        const showingPassword = passwordInput.type === "text";
+
+        passwordInput.type = showingPassword ? "password" : "text";
+        this.setAttribute("aria-label", showingPassword ? "Show password" : "Hide password");
+        this.setAttribute("aria-pressed", String(!showingPassword));
+        this.querySelector(".password-eye-open").classList.toggle("d-none", !showingPassword);
+        this.querySelector(".password-eye-closed").classList.toggle("d-none", showingPassword);
+    });
+});
+
+signupForm.addEventListener("submit", async function(e){
+    e.preventDefault();
+    signupMsg.textContent = "";
+
+    const name = document.getElementById("signup-name").value.trim();
+    const email = document.getElementById("signup-email").value.trim();
+    const password = document.getElementById("signup-password").value.trim();
+    const meanGrade = document.getElementById("signup-mean-grade").value.trim();
+    const interests = document.getElementById("signup-interests").value.trim();
+    const careerGoals = document.getElementById("signup-career-goals").value.trim();
+
+    // Gather subjects + grades
+    const subjectRows = document.querySelectorAll(".subject-row");
+    const subjects = [];
+    subjectRows.forEach(row => {
+        const name = row.querySelector(".subject-name").value;
+        const grade = row.querySelector(".subject-grade").value;
+        if(name && grade){
+            subjects.push(`${name}:${grade}`);
+        }
+    });
+
+    if(subjects.length < 7){
+        signupMsg.textContent = "Please enter at least 7 subjects.";
+        return;
+    }
+
+    const payload = {
+        name,
+        email,
+        password,
+        mean_grade: meanGrade,
+        interests,
+        career_goals: careerGoals,
+        subjects,
+        extra_data: {}
+    };
+
+    try {
+        const res = await fetch("http://localhost:8000/signup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if(!res.ok){
+            signupMsg.textContent = data.detail || "Signup failed.";
+            return;
+        }
+        // Save user locally
+        localStorage.setItem("user", JSON.stringify({
+            user_id: data.user_id,
+            name,
+            email,
+            mean_grade: meanGrade,
+            interests,
+            career_goals: careerGoals,
+            subjects
+        }));
+        window.location.href = "profile.html";
+    } catch(err){
+        signupMsg.textContent = "Network or server error.";
+    }
+});
+
+
+</script>
+
+<!-- Footer -->
+<footer class="ix-footer">
+    <div class="ix-container ix-footer-grid">
+        <div>
+            <h4>Email</h4>
+            <a href="mailto:melbrideb@gmail.com">melbrideb@gmail.com</a>
+        </div>
+        <div>
+            <h4>Phone</h4>
+            <a href="tel:0790117305">0790117305</a>
+        </div>
+        <div>
+            <h4>Address</h4>
+            <p>Meru, Kenya</p>
+        </div>
+    </div>
+    <div class="ix-footnote">© 2026 KCSE Guidance AI</div>
+</footer>
+</body>
+</html>

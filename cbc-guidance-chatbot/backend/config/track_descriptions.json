@@ -1,0 +1,19 @@
+{
+  "stem": {
+    "pure sciences": "gives a strong base for medicine, engineering, and science degrees",
+    "applied sciences": "works well for applied science, agriculture, and health-related pathways",
+    "technical & engineering": "fits technical, engineering, and technology-focused pathways",
+    "career & technical studies (cts)": "supports practical technical and career-oriented pathways",
+    "default": "gives a strong foundation for science and technical careers"
+  },
+  "social sciences": {
+    "languages & literature": "supports communication, law, media, and language-focused careers",
+    "humanities & business studies": "builds a strong base for business, law, public service, and social science careers",
+    "default": "builds a strong foundation for communication, society, and people-focused careers"
+  },
+  "arts & sports": {
+    "arts": "supports creative expression, performing arts, and media pathways",
+    "sports & recreation": "supports sports performance, coaching, and recreation pathways",
+    "default": "supports creative expression and performance-based career pathways"
+  }
+}

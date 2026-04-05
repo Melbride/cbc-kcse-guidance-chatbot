@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Select Stage — CBC Guide</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/theme.css">
+  <script src="js/theme.js" defer></script>
+</head>
+<body>
+<div class="app-layout">
+  <nav id="app-sidebar" class="sidebar"></nav>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <div class="main-content">
+    <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+    <div class="page-header">
+      <h1>Where are you in your journey?</h1>
+      <p>Select your current stage so we can personalise your guidance.</p>
+    </div>
+    <div class="page-body">
+      <div class="stage-cards">
+        <div class="stage-card">
+          <div class="stage-card-emoji">S1</div>
+          <h3>Before Exams</h3>
+          <p>Exploring pathways, understanding subjects, and discovering your interests and strengths.</p>
+          <button class="stage-btn s-btn-before" onclick="selectStage('before_exam')">Select this stage</button>
+        </div>
+        <div class="stage-card">
+          <div class="stage-card-emoji">S2</div>
+          <h3>After Exams</h3>
+          <p>You have your CBC results and are ready to make informed pathway decisions.</p>
+          <button class="stage-btn s-btn-after" onclick="selectStage('after_exam')">Select this stage</button>
+        </div>
+        <div class="stage-card">
+          <div class="stage-card-emoji">S3</div>
+          <h3>After Placement</h3>
+          <p>You've been placed in a school and pathway — now planning ahead for success.</p>
+          <button class="stage-btn s-btn-placed" onclick="selectStage('after_placement')">Select this stage</button>
+        </div>
+      </div>
+      <div style="margin-top: 24px;">
+        <a href="dashboard.html" style="color: var(--muted); font-size: 13px; text-decoration: none;">Back to dashboard</a>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="js/main.js"></script>
+</body>
+</html>

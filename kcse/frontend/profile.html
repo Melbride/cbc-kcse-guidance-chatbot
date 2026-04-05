@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Profile - KCSE Guidance Chatbot</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/landing.css?v=20260404">
+    <link rel="stylesheet" href="css/theme.css?v=20260404">
+    <link rel="stylesheet" href="css/style.css?v=20260404">
+    <script src="js/theme.js" defer></script>
+</head>
+<body class="profile-page">
+    <!-- Header -->
+    <header class="landing-navbar">
+        <div class="container">
+            <div class="landing-nav-wrap">
+                <a class="landing-navbar-brand" href="landing.html">KCSE Guidance AI</a>
+                <nav class="landing-nav-links">
+                    <a href="landing.html#about">About</a>
+                    <a href="landing.html#features">Features</a>
+                    <a href="landing.html#contact">Contact</a>
+                </nav>
+                <div class="landing-nav-actions">
+                    <a href="index.html" class="landing-nav-link">Chat</a>
+                    <a href="signin.html" class="landing-nav-login">Sign In</a>
+                    <a href="signup.html" class="landing-nav-signup">Sign Up</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="profile-container">
+        <div class="profile-header">
+            <h1 class="profile-title">User Profile</h1>
+        </div>
+        
+        <div class="profile-content">
+            <div class="profile-section">
+                <h2 class="section-title">Personal Information</h2>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Name</span>
+                        <span class="info-value" id="profile-name">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Email</span>
+                        <span class="info-value" id="profile-email">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Mean Grade</span>
+                        <span class="info-value" id="profile-grade">-</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="profile-section">
+                <h2 class="section-title">Academic Details</h2>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Interests</span>
+                        <span class="info-value" id="profile-interests">Not available</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Career Goals</span>
+                        <span class="info-value" id="profile-career">Not available</span>
+                    </div>
+                </div>
+                
+                <div class="subjects-section">
+                    <h3 class="subsection-title">Subjects</h3>
+                    <div id="profile-subjects" class="subjects-list">
+                        <span class="no-data">Not available</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const API_BASE = "http://localhost:8000";
+        const GRADE_POINTS = {
+            "A": 12,
+            "A-": 11,
+            "B+": 10,
+            "B": 9,
+            "B-": 8,
+            "C+": 7,
+            "C": 6,
+            "C-": 5,
+            "D+": 4,
+            "D": 3,
+            "D-": 2,
+            "E": 1
+        };
+
+        // Check if user is logged in
+        const user = JSON.parse(localStorage.getItem("user"));
+        if (!user) {
+            window.location.href = "signin.html";
+            // Stop execution
+            throw new Error("User not authenticated");
+        }
+
+        function inferMeanGrade(subjects) {
+            if (!Array.isArray(subjects) || subjects.length === 0) return "";
+
+            const points = subjects
+                .map(entry => {
+                    const parts = String(entry).split(":");
+                    const grade = (parts[1] || "").trim().toUpperCase();
+                    return GRADE_POINTS[grade];
+                })
+                .filter(value => typeof value === "number");
+
+            if (points.length === 0) return "";
+
+            const average = points.reduce((sum, value) => sum + value, 0) / points.length;
+            return Object.entries(GRADE_POINTS).reduce((closest, current) => {
+                return Math.abs(current[1] - average) < Math.abs(closest[1] - average) ? current : closest;
+            })[0];
+        }
+
+        function renderProfile(profile) {
+            // Update personal information
+            document.getElementById("profile-name").textContent = profile.name || "-";
+            document.getElementById("profile-email").textContent = profile.email || "-";
+            document.getElementById("profile-grade").textContent = profile.mean_grade || "Not available";
+            
+            // Update academic details
+            document.getElementById("profile-interests").textContent = profile.interests || "Not available";
+            document.getElementById("profile-career").textContent = profile.career_goals || "Not available";
+            
+            // Update subjects
+            const subjectsContainer = document.getElementById("profile-subjects");
+            if (profile.subjects && Array.isArray(profile.subjects) && profile.subjects.length > 0) {
+                subjectsContainer.innerHTML = profile.subjects.map(subject => 
+                    `<span class="subject-tag">${subject}</span>`
+                ).join("");
+            } else {
+                subjectsContainer.innerHTML = '<span class="no-data">Not available</span>';
+            }
+        }
+
+        async function loadProfile() {
+            try {
+                const response = await fetch(`${API_BASE}/user/profile?email=${encodeURIComponent(user.email)}`);
+                const profile = await response.json();
+                if (!response.ok) {
+                    throw new Error(profile.detail || "Could not load profile");
+                }
+
+                const subjects = profile.extra_data && profile.extra_data.subjects
+                    ? profile.extra_data.subjects
+                    : (user.subjects || []);
+
+                const mergedProfile = {
+                    ...user,
+                    ...profile,
+                    mean_grade: profile.mean_grade || user.mean_grade || inferMeanGrade(subjects),
+                    subjects
+                };
+
+                localStorage.setItem("user", JSON.stringify(mergedProfile));
+                renderProfile(mergedProfile);
+            } catch (error) {
+                renderProfile(user);
+            }
+        }
+
+        loadProfile();
+    </script>
+    
+    <!-- Footer -->
+    <footer class="ix-footer">
+        <div class="ix-container ix-footer-grid">
+            <div>
+                <h4>Email</h4>
+                <a href="mailto:melbrideb@gmail.com">melbrideb@gmail.com</a>
+            </div>
+            <div>
+                <h4>Phone</h4>
+                <a href="tel:0790117305">0790117305</a>
+            </div>
+            <div>
+                <h4>Address</h4>
+                <p>Meru, Kenya</p>
+            </div>
+        </div>
+        <div class="ix-footnote">© 2026 KCSE Guidance AI</div>
+    </footer>
+    
+
+</body>
+</html>

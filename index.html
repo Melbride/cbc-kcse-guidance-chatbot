@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShuleGuide AI | CBC and KCSE Pathways</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="landing.css">
+</head>
+<body>
+  <main class="landing-page">
+    <header class="landing-header">
+      <div class="header-inner">
+        
+        <h1>ShuleGuide AI - Kenyan Educational Guidance</h1>
+        <p class="intro">
+          Instantly discover your best-fit subjects, courses, and pathways—whether you’re on the CBC or KCSE track. Start your journey with Guidance AI and get tailored recommendations for your next academic step.
+        </p>
+      </div>
+    </header>
+
+    <section class="selection-guide">
+      <h3>Choose Your Educational Level</h3>
+      <div class="level-info">
+        <div class="cbc-info">
+          <strong>🎓 CBC Students</strong>
+          <p>Grades 7-9 exploring pathways and subject combinations</p>
+        </div>
+        <div class="kcse-info">
+          <strong>📚 KCSE Students</strong>  
+          <p>Form 3-4 planning careers and post-secondary options</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="about-section">
+      <div class="meta-card about-desc">
+        <h3>About</h3>
+        <p class="intro">
+          A Retrieval-Augmented Generation (RAG) powered chatbot for personalized
+          guidance of CBC and KCSE learners in Kenya. This system provides
+          curriculum-aligned, AI-driven pathway and course recommendations through
+          a user-friendly conversational interface.
+        </p>
+      </div>
+      <div class="meta-card about-features">
+        <h4>Key Features</h4>
+        <ul class="feature-list">
+          <li>Personalized pathway &amp; course recommendations</li>
+          <li>CBC &amp; KCSE support</li>
+          <li>AI-powered chatbot</li>
+          <li>Curriculum-aligned guidance</li>
+          <li>User-friendly web interface</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="system-grid" aria-label="Choose a guidance system">
+      <a class="system-card cbc-card" href="cbc-guidance-chatbot/frontend/index.html">
+        <span class="system-tag">CBC System</span>
+        <h2>CBC Guidance</h2>
+        <p>For learners exploring pathways, competencies, senior schools, and subject combinations.</p>
+        <span class="system-link">Open CBC platform</span>
+      </a>
+      <a class="system-card kcse-card" href="kcse/frontend/landing.html">
+        <span class="system-tag">KCSE System</span>
+        <h2>KCSE Guidance</h2>
+        <p>For students seeking career direction, course options, and next-step planning after KCSE.</p>
+        <span class="system-link">Open KCSE platform</span>
+      </a>
+    </section>
+  </main>
+</main>
+
+  <footer class="project-footer">
+    <div class="footer-inner">
+      <div class="footer-contact" style="justify-content: center; flex-wrap: wrap; text-align: center;">
+        <span class="footer-label">Email:</span>
+        <a href="mailto:melbrideb@gmail.com" class="footer-link">melbrideb@gmail.com</a>
+        <span class="footer-sep">|</span>
+        <span class="footer-label">Phone:</span>
+        <a href="tel:+254790117305" class="footer-link">0790 117 305</a>
+        <span class="footer-sep">|</span>
+        <span class="footer-copyright">&copy; 2026 ShuleGuide AI. All rights reserved.</span>
+      </div>
+    </div>
+  </footer>
+  <style>
+    .project-footer {
+      background: linear-gradient(180deg, #fffdf9 80%, #f4efe6 100%);
+      border-top: 1px solid var(--line);
+      margin-top: 48px;
+      font-family: "Instrument Sans", sans-serif;
+      color: var(--muted);
+      font-size: 1rem;
+      box-shadow: 0 -8px 32px rgba(62, 42, 17, 0.06);
+    }
+    .footer-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 36px 24px 18px 24px;
+      display: grid;
+      grid-template-columns: 2.2fr 1.2fr;
+      gap: 36px 48px;
+      align-items: start;
+    }
+    .footer-about {
+      grid-column: 1 / span 1;
+    }
+    .footer-about h3 {
+      margin: 0 0 10px 0;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 1.25rem;
+      color: var(--cbc-accent);
+    }
+    .footer-features {
+      grid-column: 2 / span 1;
+    }
+    .footer-features h4 {
+      margin: 0 0 8px 0;
+      font-size: 1.08rem;
+      color: var(--kcse-accent);
+      font-family: "Space Grotesk", sans-serif;
+    }
+    .footer-features ul {
+      margin: 0;
+      padding-left: 18px;
+      list-style: disc;
+    }
+    /* Meta and acknowledgement styles removed */
+    .footer-copyright {
+      grid-column: 1 / span 2;
+      margin-top: 18px;
+      font-size: 0.95rem;
+      color: #b6a98c;
+      text-align: right;
+    }
+    /* Selection Guide Styles */
+    .selection-guide {
+      max-width: 1100px;
+      margin: 0 auto 48px;
+      padding: 0 24px;
+    }
+    
+    .selection-guide h3 {
+      text-align: center;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 1.5rem;
+      color: var(--text);
+      margin-bottom: 32px;
+    }
+    
+    .level-info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      margin-bottom: 48px;
+    }
+    
+    .cbc-info, .kcse-info {
+      background: var(--card-bg);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 32px;
+      text-align: center;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .cbc-info:hover, .kcse-info:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px rgba(62, 42, 17, 0.1);
+    }
+    
+    .cbc-info strong, .kcse-info strong {
+      display: block;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 1.25rem;
+      margin-bottom: 12px;
+    }
+    
+    .cbc-info strong {
+      color: var(--cbc-accent);
+    }
+    
+    .kcse-info strong {
+      color: var(--kcse-accent);
+    }
+    
+    .cbc-info p, .kcse-info p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    
+    @media (max-width: 768px) {
+      .level-info {
+        grid-template-columns: 1fr;
+        gap: 24px;
+      }
+    }
+
+</style>

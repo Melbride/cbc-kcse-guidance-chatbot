@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Profile — CBC Guide</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/theme.css">
+  <script src="js/theme.js" defer></script>
+</head>
+<body>
+<div class="app-layout">
+  <nav id="app-sidebar" class="sidebar"></nav>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <div class="main-content">
+    <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+    <div class="page-header">
+      <h1>My Profile</h1>
+      <p>Tell us about yourself so we can personalise your CBC guidance.</p>
+    </div>
+    <div class="page-body">
+<div style="max-width: 640px;">
+  
+  <!-- User Info Display Card -->
+  <div class="profile-info-card">
+    <div class="profile-info-header">
+      <div class="profile-info-avatar" id="profile-avatar">U</div>
+      <div class="profile-info-main">
+        <h3 id="profile-name">User Name</h3>
+        <p id="profile-email" class="text-muted">email@example.com</p>
+      </div>
+      <a href="stage.html" class="profile-stage-btn">Change Stage</a>
+    </div>
+    <div class="profile-info-details">
+      <div class="profile-detail-row">
+        <span class="detail-label">School</span>
+        <span class="detail-value" id="profile-school">—</span>
+      </div>
+      <div class="profile-detail-row">
+        <span class="detail-label">Current Stage</span>
+        <span class="detail-value" id="profile-stage">—</span>
+      </div>
+      <div class="profile-detail-row" id="profile-pathway-row" style="display:none;">
+        <span class="detail-label">Preferred Pathway</span>
+        <span class="detail-value" id="profile-pathway">—</span>
+      </div>
+      <div class="profile-detail-row" id="profile-fav-row" style="display:none;">
+        <span class="detail-label">Favorite Subject</span>
+        <span class="detail-value" id="profile-favorite-subject">—</span>
+      </div>
+      <div class="profile-detail-row" id="profile-strengths-row" style="display:none;">
+        <span class="detail-label">Strength</span>
+        <span class="detail-value" id="profile-strength-summary">—</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="stage-mode-note" class="info-alert" style="display:none;"></div>
+  <div id="stage-missing-alert" class="warn-alert" style="display:none;"></div>
+  <p class="text-muted mb-4" id="stage-help-text" style="font-size:14px;">This helps us provide personalized guidance based on your interests and strengths.</p>
+
+  <form id="profile-form">
+    <div id="common-profile-fields">
+    <div class="mb-3">
+      <label for="favorite-subject" class="form-label">Favorite Subject</label>
+      <select id="favorite-subject" class="form-select">
+        <option value="">Select your favorite subject</option>
+        <option value="mathematics">Mathematics</option>
+        <option value="science">Science</option>
+        <option value="english">English</option>
+        <option value="kiswahili">Kiswahili</option>
+        <option value="social-studies">Social Studies</option>
+        <option value="business-studies">Business Studies</option>
+        <option value="agriculture">Agriculture</option>
+        <option value="cre">CRE</option>
+        <option value="ire">IRE</option>
+        <option value="hre">HRE</option>
+      </select>
+    </div>
+    
+    <div class="mb-3">
+      <label for="interests" class="form-label">What do you enjoy learning about?</label>
+      <textarea id="interests" class="form-control" rows="3" placeholder="e.g., I enjoy learning about technology, solving problems, and helping others"></textarea>
+    </div>
+    
+    <div class="mb-3">
+      <label for="strengths" class="form-label">What are your strengths?</label>
+      <textarea id="strengths" class="form-control" rows="3" placeholder="e.g., I'm good at mathematics, creative thinking, and working in teams"></textarea>
+    </div>
+    
+    <div class="mb-3">
+      <label for="career-interests" class="form-label">Career Interests (optional)</label>
+      <input type="text" id="career-interests" class="form-control" placeholder="e.g., Doctor, Engineer, Teacher, Artist">
+    </div>
+    
+    <div class="mb-3">
+      <label for="learning-style" class="form-label">Learning Style</label>
+      <select id="learning-style" class="form-select">
+        <option value="">Select your learning style</option>
+        <option value="visual">Visual - I learn by seeing</option>
+        <option value="auditory">Auditory - I learn by listening</option>
+        <option value="kinesthetic">Kinesthetic - I learn by doing</option>
+        <option value="mixed">Mixed - I learn in different ways</option>
+      </select>
+    </div>
+    </div>
+
+    <div id="stage-before-exam-fields" style="display:none;">
+      <div class="mb-3">
+        <label for="explore-goals" class="form-label">What are you exploring most right now?</label>
+        <textarea id="explore-goals" class="form-control" rows="2" placeholder="e.g., pathways, careers, subject choices"></textarea>
+      </div>
+    </div>
+
+    <div id="stage-after-exam-fields" style="display:none;">
+      <h6 class="mt-4">Your CBC Results (Required)</h6>
+      <p class="text-muted small">Enter your CBC results below. This section is required for Stage 2.</p>
+
+      <div class="mb-3">
+        <label class="form-label">CBC Pathway Scores</label>
+        <div class="row">
+          <div class="col-md-4 mb-2">
+            <label for="stem-pathway-score" class="form-label">STEM</label>
+            <input id="stem-pathway-score" type="number" step="0.0001" min="0" class="form-control" placeholder="e.g., 35.0285">
+          </div>
+          <div class="col-md-4 mb-2">
+            <label for="social-pathway-score" class="form-label">Social Science</label>
+            <input id="social-pathway-score" type="number" step="0.0001" min="0" class="form-control" placeholder="e.g., 36.9358">
+          </div>
+          <div class="col-md-4 mb-2">
+            <label for="arts-pathway-score" class="form-label">Arts & Sports</label>
+            <input id="arts-pathway-score" type="number" step="0.0001" min="0" class="form-control" placeholder="e.g., 37.6615">
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">CBC Subject Results (Required)</label>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Subject</th>
+                <th>Performance</th>
+                <th>Points</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>901</td>
+                <td>English</td>
+                <td><select id="perf-901" class="form-select form-select-sm" onchange="updatePerformanceDescription('901')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td>
+                <td><input id="pts-901" type="number" min="1" max="8" class="form-control form-control-sm"></td>
+                <td><input id="desc-901" type="text" class="form-control form-control-sm" readonly></td>
+              </tr>
+              <tr>
+                <td>902</td>
+                <td>Kiswahili</td>
+                <td><select id="perf-902" class="form-select form-select-sm" onchange="updatePerformanceDescription('902')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td>
+                <td><input id="pts-902" type="number" min="1" max="8" class="form-control form-control-sm"></td>
+                <td><input id="desc-902" type="text" class="form-control form-control-sm" readonly></td>
+              </tr>
+              <tr>
+                <td>903</td>
+                <td>Mathematics</td>
+                <td><select id="perf-903" class="form-select form-select-sm" onchange="updatePerformanceDescription('903')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td>
+                <td><input id="pts-903" type="number" min="1" max="8" class="form-control form-control-sm"></td>
+                <td><input id="desc-903" type="text" class="form-control form-control-sm" readonly></td>
+              </tr>
+              <tr>
+                <td>905</td>
+                <td>Integrated Science</td>
+                <td><select id="perf-905" class="form-select form-select-sm" onchange="updatePerformanceDescription('905')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td>
+                <td><input id="pts-905" type="number" min="1" max="8" class="form-control form-control-sm"></td>
+                <td><input id="desc-905" type="text" class="form-control form-control-sm" readonly></td>
+              </tr>
+              <tr>
+                <td>906</td>
+                <td>Agriculture</td>
+                <td><select id="perf-906" class="form-select form-select-sm" onchange="updatePerformanceDescription('906')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td>
+                <td><input id="pts-906" type="number" min="1" max="8" class="form-control form-control-sm"></td>
+                <td><input id="desc-906" type="text" class="form-control form-control-sm" readonly></td>
+              </tr>
+              <tr>
+                <td>907</td>
+                <td>Social Studies</td>
+                <td><select id="perf-907" class="form-select form-select-sm" onchange="updatePerformanceDescription('907')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td>
+                <td><input id="pts-907" type="number" min="1" max="8" class="form-control form-control-sm"></td>
+                <td><input id="desc-907" type="text" class="form-control form-control-sm" readonly></td>
+              </tr>
+              <tr>
+                <td>908</td>
+                <td>Christian Religious Education</td>
+                <td><select id="perf-908" class="form-select form-select-sm" onchange="updatePerformanceDescription('908')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td>
+                <td><input id="pts-908" type="number" min="1" max="8" class="form-control form-control-sm"></td>
+                <td><input id="desc-908" type="text" class="form-control form-control-sm" readonly></td>
+              </tr>
+              <tr>
+                <td>911</td>
+                <td>Creative Arts & Sports</td>
+                <td><select id="perf-911" class="form-select form-select-sm" onchange="updatePerformanceDescription('911')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td>
+                <td><input id="pts-911" type="number" min="1" max="8" class="form-control form-control-sm"></td>
+                <td><input id="desc-911" type="text" class="form-control form-control-sm" readonly></td>
+              </tr>
+              <tr>
+                <td>912</td>
+                <td>Pre-technical Studies</td>
+                <td><select id="perf-912" class="form-select form-select-sm" onchange="updatePerformanceDescription('912')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td>
+                <td><input id="pts-912" type="number" min="1" max="8" class="form-control form-control-sm"></td>
+                <td><input id="desc-912" type="text" class="form-control form-control-sm" readonly></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="stage-after-placement-fields" style="display:none;">
+      <h6 class="mt-4">Placement Details</h6>
+      <div class="mb-3">
+        <label for="placed-school" class="form-label">Placed School</label>
+        <input id="placed-school" type="text" class="form-control" placeholder="Enter your placed school">
+      </div>
+      <div class="mb-3">
+        <label for="placed-pathway" class="form-label">Placed Pathway</label>
+        <select id="placed-pathway" class="form-select">
+          <option value="">Select pathway</option>
+          <option value="STEM">STEM</option>
+          <option value="SOCIAL SCIENCES">Social Sciences</option>
+          <option value="ARTS & SPORTS">Arts & Sports</option>
+        </select>
+      </div>
+    </div>
+    
+    <button type="button" class="btn btn-primary w-100" onclick="saveProfile()">Continue to Guidance</button>
+    <a href="stage.html" class="btn btn-link w-100 mt-2">Back</a>
+  </form>
+</div><!-- end max-width -->
+    </div><!-- end page-body -->
+  </div><!-- end main-content -->
+</div><!-- end app-layout -->
+<script src="js/main.js"></script>
+</body>
+</html>
