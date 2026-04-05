@@ -1160,17 +1160,41 @@ async function displaySchools() {
 
 // Check authentication on page load
 function checkAuth() {
-const userId = localStorage.getItem('userId');
-if (!userId && !window.location.pathname.includes('index.html') && !window.location.pathname.includes('login.html') && !window.location.pathname.includes('signup.html')) {
-window.location = 'login.html';
-return false;
-}
-return true;
+  const userId = localStorage.getItem('userId');
+  const currentPage = window.location.pathname;
+  
+  // Pages that require authentication
+  const protectedPages = ['dashboard.html', 'profile.html'];
+  
+  // Pages that are accessible without authentication
+  const publicPages = ['index.html', 'login.html', 'signup.html', 'chat.html'];
+  
+  // If on protected page without userId, redirect to login
+  if (protectedPages.includes(currentPage) && !userId) {
+    window.location = 'login.html';
+    return false;
+  }
+  
+  // If userId exists but on login/signup page, redirect to dashboard
+  if (userId && (currentPage.includes('login.html') || currentPage.includes('signup.html'))) {
+    window.location = 'dashboard.html';
+    return false;
+  }
+  
+  return true;
 }
 
 // Logout
 function logout() {
-localStorage.removeItem('userId');
+  localStorage.removeItem('userId');
+  localStorage.removeItem('userEmail');
+  localStorage.removeItem('userName');
+  localStorage.removeItem('userProfile');
+  localStorage.removeItem('userStage');
+  localStorage.removeItem('pendingStageMissing');
+  localStorage.removeItem('profileOwnerUserId');
+  clearPostLoginRedirect();
+  window.location = 'index.html';
 localStorage.removeItem('userEmail');
 localStorage.removeItem('userName');
 localStorage.removeItem('userProfile');
