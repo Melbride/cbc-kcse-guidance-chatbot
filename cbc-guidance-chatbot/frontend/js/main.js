@@ -1,11 +1,6 @@
 // Backend-Connected Functions for CBC Chatbot
 const API_BASE = 'https://cbc-kcse-guidance-chatbot.onrender.com';const THEME_KEY = 'uiTheme';
 
-function navigate(page) {
-  const base = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
-  window.location = base + page;
-}
-
 function getStoredTheme() {
   try {
     const value = localStorage.getItem(THEME_KEY);
@@ -944,7 +939,7 @@ async function selectPathway(pathway) {
       })
     });
 
-    window.location = `schools.html?pathway=${encodeURIComponent(pathway)}`;
+    navigate(`schools.html?pathway=${encodeURIComponent(pathway)}`);
   } catch (error) {
     console.error('Pathway selection error:', error);
     alert('Error saving pathway selection');
@@ -1163,26 +1158,27 @@ async function displaySchools() {
   }
 }
 
-// Check authentication on page load
+function getBasePath() {
+  const path = window.location.pathname;
+  return path.substring(0, path.lastIndexOf('/') + 1);
+}
+
+function navigate(page) {
+  window.location = getBasePath() + page;
+}
+
 function checkAuth() {
   const userId = localStorage.getItem('userId');
   const path = window.location.pathname;
-  const publicPages = ['index.html', 'login.html', 'signup.html', '/'];
-  const isPublic = publicPages.some(page => path.includes(page)) || path.endsWith('/frontend/');
-  
+  const isPublic = path.includes('index.html') || 
+                   path.includes('login.html') || 
+                   path.includes('signup.html') ||
+                   path.endsWith('/frontend/') ||
+                   path.endsWith('/frontend');
   if (!userId && !isPublic) {
-    const base = path.substring(0, path.lastIndexOf('/') + 1);
-    window.location = base + 'login.html';
+    navigate('login.html');
     return false;
   }
-  
-  // If userId exists but on login/signup page, redirect to dashboard
-  if (userId && (path.includes('login.html') || path.includes('signup.html'))) {
-    const base = path.substring(0, path.lastIndexOf('/') + 1);
-    window.location = base + 'dashboard.html';
-    return false;
-  }
-  
   return true;
 }
 
