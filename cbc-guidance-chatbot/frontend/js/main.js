@@ -1,6 +1,5 @@
 // Backend-Connected Functions for CBC Chatbot
-const API_BASE = 'http://localhost:8001';
-const THEME_KEY = 'uiTheme';
+const API_BASE = 'https://cbc-kcse-guidance-chatbot.onrender.com';const THEME_KEY = 'uiTheme';
 
 function getStoredTheme() {
   try {
