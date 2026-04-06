@@ -62,14 +62,15 @@ def get_embeddings():
         return _EMBEDDINGS
 
     try:
-        from langchain_huggingface import HuggingFaceEmbeddings
+        from langchain_community.embeddings import HuggingFaceInferenceAPIEmbeddings
 
-        _EMBEDDINGS = HuggingFaceEmbeddings(
+        _EMBEDDINGS = HuggingFaceInferenceAPIEmbeddings(
+            api_key=HUGGINGFACEHUB_API_TOKEN,
             model_name="sentence-transformers/all-MiniLM-L6-v2"
         )
     except Exception as e:
         _EMBEDDINGS_ERROR = e
-        print(f"Warning: falling back to local embeddings because Hugging Face init failed: {e}")
+        print(f"Warning: falling back to local embeddings: {e}")
         _EMBEDDINGS = _FallbackEmbeddings()
     return _EMBEDDINGS
 
