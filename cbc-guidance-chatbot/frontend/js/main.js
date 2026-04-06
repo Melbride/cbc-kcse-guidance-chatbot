@@ -1,6 +1,49 @@
 // Backend-Connected Functions for CBC Chatbot
 const API_BASE = 'https://cbc-kcse-guidance-chatbot.onrender.com';const THEME_KEY = 'uiTheme';
 
+const FREE_CHAT_LIMIT = 3;
+
+function getGuestChatCount() {
+  return parseInt(localStorage.getItem('guestChatCount') || '0', 10);
+}
+
+function incrementGuestChatCount() {
+  const count = getGuestChatCount() + 1;
+  localStorage.setItem('guestChatCount', count);
+  return count;
+}
+
+function isGuestLimitReached() {
+  const userId = localStorage.getItem('userId');
+  if (userId) return false; // logged in users have no limit
+  return getGuestChatCount() >= FREE_CHAT_LIMIT;
+}
+
+function showGuestLimitModal() {
+  const existing = document.getElementById('guest-limit-modal');
+  if (existing) return;
+
+  const modal = document.createElement('div');
+  modal.id = 'guest-limit-modal';
+  modal.style.cssText = `
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6); z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+  `;
+  modal.innerHTML = `
+    <div style="background: white; border-radius: 16px; padding: 40px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+      <div style="font-size: 48px; margin-bottom: 16px;">🎓</div>
+      <h2 style="margin: 0 0 12px 0; font-size: 1.5rem; color: #1a1a1a;">You've used your 3 free messages</h2>
+      <p style="color: #666; margin-bottom: 28px; line-height: 1.5;">Create a free account to get unlimited access to CBC guidance, pathway recommendations, and school search.</p>
+      <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+        <button onclick="navigate('signup.html')" style="background: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: 600;">Create Free Account</button>
+        <button onclick="navigate('login.html')" style="background: transparent; color: #2563eb; border: 2px solid #2563eb; padding: 12px 24px; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: 600;">Login</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
 function getStoredTheme() {
   try {
     const value = localStorage.getItem(THEME_KEY);
@@ -558,6 +601,24 @@ async function sendMessage() {
   const text = input.value.trim();
   
   if (!text) return;
+
+  // Check guest limit
+  if (isGuestLimitReached()) {
+    showGuestLimitModal();
+    return;
+  }
+
+  // Increment count for guests
+  const userId = localStorage.getItem('userId');
+  if (!userId) {
+    const count = incrementGuestChatCount();
+    const remaining = FREE_CHAT_LIMIT - count;
+    if (remaining > 0) {
+      // Show remaining count hint
+      const hint = document.getElementById('guest-chat-hint');
+      if (hint) hint.textContent = `${remaining} free message${remaining === 1 ? '' : 's'} remaining`;
+    }
+  }
 
   // Add user message
   chatMessages.push({ type: 'user', text });
@@ -1408,7 +1469,6 @@ initializeThemeControls();
 
 // Check authentication for protected pages
 if (window.location.pathname.includes('dashboard') || 
-window.location.pathname.includes('chat') || 
 window.location.pathname.includes('schools') ||
 window.location.pathname.includes('pathway') ||
 window.location.pathname.includes('stage') ||
@@ -1416,6 +1476,7 @@ window.location.pathname.includes('profile')) {
 console.log('Protected page detected, checking auth...');
 checkAuth();
 }
+// Chat is public but limited for guests
 
 if (window.location.pathname.includes('profile')) {
   displayProfileInfo();
@@ -1442,6 +1503,17 @@ if (window.location.pathname.includes('dashboard')) {
 // Show empty state on chat page
 if (window.location.pathname.includes('chat')) {
   renderChat();
+  
+  // Show remaining messages for guests
+  const userId = localStorage.getItem('userId');
+  if (!userId) {
+    const count = getGuestChatCount();
+    const remaining = FREE_CHAT_LIMIT - count;
+    if (remaining > 0) {
+      const hint = document.getElementById('guest-chat-hint');
+      if (hint) hint.textContent = `${remaining} free message${remaining === 1 ? '' : 's'} remaining`;
+    }
+  }
 }
 
 // Load schools if on schools page
