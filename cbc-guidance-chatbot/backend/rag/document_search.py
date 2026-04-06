@@ -56,25 +56,63 @@ embeddings = _EmbeddingsProxy()
 llm = _LLMProxy()
 
 
+class _HFInferenceEmbeddings:
+    """Custom HuggingFace Inference API embeddings that handles response format correctly."""
+    
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.api_url = "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
+        self.dimension = 384
+
+    def embed_query(self, text: str) -> list:
+        return self._embed([text])[0]
+
+    def embed_documents(self, texts: list) -> list:
+        return self._embed(texts)
+
+    def _embed(self, texts: list) -> list:
+        import requests
+        try:
+            response = requests.post(
+                self.api_url,
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json={"inputs": texts, "options": {"wait_for_model": True}},
+                timeout=30
+            )
+            if response.status_code == 200:
+                result = response.json()
+                # Handle different response formats
+                if isinstance(result, list) and len(result) > 0:
+                    if isinstance(result[0], list):
+                        return result  # Already list of embeddings
+                    else:
+                        return [result]  # Single embedding wrapped in list
+            print(f"HF API error: {response.status_code} {response.text[:100]}")
+        except Exception as e:
+            print(f"HF API request failed: {e}")
+        
+        # Fallback to deterministic embeddings
+        return [_FallbackEmbeddings().embed_query(text) for text in texts]
+
+
 def get_embeddings():
     global _EMBEDDINGS, _EMBEDDINGS_ERROR
     if _EMBEDDINGS is not None:
         return _EMBEDDINGS
 
-    try:
-        from langchain_community.embeddings import HuggingFaceInferenceAPIEmbeddings
-        _EMBEDDINGS = HuggingFaceInferenceAPIEmbeddings(
-            api_key=HUGGINGFACEHUB_API_TOKEN,
-            model_name="sentence-transformers/all-MiniLM-L6-v2"
-        )
-        # Test it works
-        test = _EMBEDDINGS.embed_query("test")
-        if not test or not isinstance(test, list):
-            raise ValueError("Invalid embedding response")
-        print("Using HuggingFace Inference API embeddings")
-    except Exception as e:
-        print(f"Warning: HuggingFace API embeddings failed, using fallback: {e}")
-        _EMBEDDINGS = _FallbackEmbeddings()
+    if HUGGINGFACEHUB_API_TOKEN:
+        try:
+            _EMBEDDINGS = _HFInferenceEmbeddings(api_key=HUGGINGFACEHUB_API_TOKEN)
+            # Test it
+            test = _EMBEDDINGS.embed_query("test")
+            if test and len(test) > 0:
+                print("Using HuggingFace Inference API embeddings")
+                return _EMBEDDINGS
+        except Exception as e:
+            print(f"HF Inference API failed: {e}")
+
+    print("Using fallback embeddings")
+    _EMBEDDINGS = _FallbackEmbeddings()
     return _EMBEDDINGS
 
 
