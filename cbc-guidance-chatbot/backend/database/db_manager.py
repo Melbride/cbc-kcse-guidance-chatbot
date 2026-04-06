@@ -49,8 +49,7 @@ class DatabaseManager:
         if database_url:
             self.conn = psycopg2.connect(
                 database_url,
-                connect_timeout=10,
-                options="-c statement_timeout=30000"
+                connect_timeout=10
             )
         else:
             db_host = os.getenv("DB_HOST", "localhost")
@@ -64,8 +63,7 @@ class DatabaseManager:
                 user=db_user,
                 password=db_password,
                 port=db_port,
-                connect_timeout=10,
-                options="-c statement_timeout=30000"
+                connect_timeout=10
             )
         self._ensure_user_columns()
         self._ensure_profile_columns()

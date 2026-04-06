@@ -62,14 +62,14 @@ def get_embeddings():
         return _EMBEDDINGS
 
     try:
-        from langchain_community.embeddings import HuggingFaceInferenceAPIEmbeddings
-
-        _EMBEDDINGS = HuggingFaceInferenceAPIEmbeddings(
-            api_key=HUGGINGFACEHUB_API_TOKEN,
-            model_name="sentence-transformers/all-MiniLM-L6-v2"
+        from langchain_huggingface import HuggingFaceEmbeddings
+        _EMBEDDINGS = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2",
+            model_kwargs={"device": "cpu"},
+            encode_kwargs={"normalize_embeddings": True}
         )
+        print("Using local HuggingFace embeddings")
     except Exception as e:
-        _EMBEDDINGS_ERROR = e
         print(f"Warning: falling back to local embeddings: {e}")
         _EMBEDDINGS = _FallbackEmbeddings()
     return _EMBEDDINGS
