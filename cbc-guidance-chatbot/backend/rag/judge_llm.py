@@ -1,37 +1,43 @@
 import os
 from dotenv import load_dotenv
-import google.generativeai as genai
 
-#load environment variables
 load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_JUDGE_MODEL = os.getenv("GEMINI_JUDGE_MODEL", "models/gemini-2.0-flash")
 
-#configure gemini ai model
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel(GEMINI_JUDGE_MODEL)
+_groq_client = None
 judge_model_available = True
 
+def get_groq_client():
+    global _groq_client
+    if _groq_client is not None:
+        return _groq_client
+    try:
+        from groq import Groq
+        _groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        return _groq_client
+    except Exception as e:
+        print(f"Groq client init failed: {e}")
+        return None
+
 def validate_answer_grounding(context: str, answer: str, question: str) -> dict:
-    """
-    Validates LLM-generated answers for factual accuracy and parent-friendliness.
-    
-    Purpose:
-    - Ensures answers are grounded in provided context (documents)
-    - Checks if responses are appropriate for students and parents
-    - Maintains educational integrity and clarity
-    
-    Args:
-        context: Retrieved document content used for answer generation
-        answer: LLM-generated response to validate
-        question: Original user question for reference
-    
-    Returns:
-        Dictionary with validation results and confidence scores
-    """
-    
-    #construct judgment prompt for ai evaluation
-    judge_prompt = f"""You are evaluating responses for a CBC Education Guidance System used by students and parents.
+    global judge_model_available
+
+    if not judge_model_available:
+        return {
+            "is_grounded": True,
+            "needs_improvement": False,
+            "is_parent_friendly": True,
+            "improved_answer": None,
+            "reasoning": "Judge model disabled.",
+            "raw_response": "",
+            "confidence": 0.7
+        }
+
+    try:
+        client = get_groq_client()
+        if not client:
+            raise RuntimeError("Groq client unavailable")
+
+        judge_prompt = f"""You are evaluating responses for a CBC Education Guidance System used by students and parents.
 
 CONTEXT:
 {context}
@@ -54,31 +60,19 @@ PARENT_FRIENDLY: [YES or NO]
 IMPROVED_VERSION: [If clarity needs improvement]
 REASONING: [Brief explanation]
 """
-    
-    global judge_model_available
 
-    if not judge_model_available:
-        return {
-            "is_grounded": True,
-            "needs_improvement": False,
-            "is_parent_friendly": True,
-            "improved_answer": None,
-            "reasoning": "Judge model disabled after previous API incompatibility.",
-            "raw_response": "",
-            "confidence": 0.7
-        }
+        response = client.chat.completions.create(
+            model="llama3-8b-8192",
+            messages=[{"role": "user", "content": judge_prompt}],
+            max_tokens=300,
+            temperature=0.1,
+        )
+        result_text = response.choices[0].message.content.strip()
 
-    try:
-        #call gemini model for evaluation
-        response = model.generate_content(judge_prompt)
-        result_text = response.text.strip()
-        
-        #parse validation results
         is_grounded = "GROUNDED: YES" in result_text
         needs_improvement = "CLARITY: NEEDS IMPROVEMENT" in result_text
         is_parent_friendly = "PARENT_FRIENDLY: YES" in result_text
-        
-        #extract improved answer if available
+
         improved_answer = None
         if "IMPROVED_VERSION:" in result_text and needs_improvement:
             try:
@@ -87,18 +81,11 @@ REASONING: [Brief explanation]
                 improved_answer = improved_part.strip()
             except:
                 pass
-        #extract reasoning for debugging
+
         reasoning = ""
         if "REASONING:" in result_text:
             reasoning = result_text.split("REASONING:")[1].strip()
-        
-        #debug output for monitoring
-        print("\nJudge Evaluation:")
-        print("Grounded:", is_grounded)
-        print("Parent-Friendly:", is_parent_friendly)
-        print("Needs Improvement:", needs_improvement)
-        
-        #return validation results with confidence score
+
         return {
             "is_grounded": is_grounded,
             "needs_improvement": needs_improvement,
@@ -108,16 +95,10 @@ REASONING: [Brief explanation]
             "raw_response": result_text,
             "confidence": 0.9 if is_grounded and is_parent_friendly else 0.6
         }
-        
+
     except Exception as e:
-        #error handling - graceful fallback
         error_text = str(e).lower()
-        if (
-            "not found" in error_text
-            or "not supported" in error_text
-            or "quota exceeded" in error_text
-            or "429" in error_text
-        ):
+        if "quota" in error_text or "429" in error_text:
             judge_model_available = False
         print("Judge LLM error:", e)
         return {
@@ -129,5 +110,3 @@ REASONING: [Brief explanation]
             "raw_response": "",
             "confidence": 0.7
         }
-
-

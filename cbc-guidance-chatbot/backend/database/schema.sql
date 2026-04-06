@@ -1,6 +1,6 @@
 -- CREATE DATABASE cbc_chatbot;
 
-\c cbc_chatbot;
+-- \c cbc_chatbot;
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE users (
