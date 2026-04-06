@@ -103,28 +103,22 @@ def get_llm():
     if _LLM is not None:
         return _LLM
 
-    if not HUGGINGFACEHUB_API_TOKEN:
-        _LLM_ERROR = RuntimeError("Missing Hugging Face API token")
-        _LLM = _FallbackLLM()
-        return _LLM
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if groq_api_key:
+        try:
+            from langchain_groq import ChatGroq
+            _LLM = ChatGroq(
+                api_key=groq_api_key,
+                model_name="llama3-8b-8192",
+                temperature=0.1,
+                max_tokens=500,
+            )
+            print("Using Groq LLM")
+            return _LLM
+        except Exception as e:
+            print(f"Groq init failed: {e}")
 
-    try:
-        from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
-
-        hf_llm = HuggingFaceEndpoint(
-            repo_id="mistralai/Mistral-7B-Instruct-v0.2",
-            huggingfacehub_api_token=HUGGINGFACEHUB_API_TOKEN,
-            temperature=0.1,
-            max_new_tokens=200,
-            repetition_penalty=1.05,
-            timeout=120,
-            do_sample=False,
-        )
-        _LLM = ChatHuggingFace(llm=hf_llm)
-    except Exception as e:
-        _LLM_ERROR = e
-        print(f"Warning: remote LLM unavailable, using fallback responder: {e}")
-        _LLM = _FallbackLLM()
+    _LLM = _FallbackLLM()
     return _LLM
 
 

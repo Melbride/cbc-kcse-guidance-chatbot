@@ -19,15 +19,23 @@ import os
 from typing import Dict, Optional
 
 from dotenv import load_dotenv
-import google.generativeai as genai
 
 load_dotenv()
 
-# ── Gemini setup ──────────────────────────────────────────────────────────────
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-GEMINI_QUERY_MODEL = os.getenv("GEMINI_QUERY_MODEL", "models/gemini-2.0-flash")
-model = genai.GenerativeModel(GEMINI_QUERY_MODEL)
+_groq_client = None
 gemini_model_available = True
+
+def get_groq_client():
+    global _groq_client
+    if _groq_client is not None:
+        return _groq_client
+    try:
+        from groq import Groq
+        _groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        return _groq_client
+    except Exception as e:
+        print(f"Groq client init failed: {e}")
+        return None
 
 # ── Load configs and DB-backed data ──────────────────────────────────────────
 from config_loader import (
@@ -345,14 +353,17 @@ class QueryAnalyzer:
     # ── LLM classification ────────────────────────────────────────────────────
 
     def _classify_with_llm(self, question: str) -> Dict:
-        """Classify query using Gemini for questions that didn't match any rule."""
+        """Classify query using Groq for questions that didn't match any rule."""
         global gemini_model_available
         if not gemini_model_available:
             return {}
 
         try:
-            prompt = f"""
-Classify this user question about CBC education in Kenya:
+            client = get_groq_client()
+            if not client:
+                return {}
+
+            prompt = f"""Classify this user question about CBC education in Kenya:
 "{question}"
 
 Return JSON with these fields:
@@ -361,12 +372,20 @@ Return JSON with these fields:
 - county: extract if mentioned
 - subjects: list any subjects mentioned
 - confidence: high/medium/low
-"""
-            response = model.generate_content(prompt)
-            return json.loads(response.text)
+
+Return only valid JSON, no extra text."""
+
+            response = client.chat.completions.create(
+                model="llama3-8b-8192",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=200,
+                temperature=0.1,
+            )
+            result = response.choices[0].message.content.strip()
+            return json.loads(result)
         except Exception as e:
             error_text = str(e).lower()
-            if any(msg in error_text for msg in ["not found", "not supported", "quota exceeded", "429"]):
+            if "quota" in error_text or "429" in error_text:
                 gemini_model_available = False
             print(f"LLM classification error: {e}")
             return {}
