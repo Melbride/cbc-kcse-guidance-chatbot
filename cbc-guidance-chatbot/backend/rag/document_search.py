@@ -61,7 +61,7 @@ class _HFInferenceEmbeddings:
     
     def __init__(self, api_key: str):
         self.api_key = api_key
-        self.api_url = "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
+        self.api_url = "https://router.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
         self.dimension = 384
 
     def embed_query(self, text: str) -> list:

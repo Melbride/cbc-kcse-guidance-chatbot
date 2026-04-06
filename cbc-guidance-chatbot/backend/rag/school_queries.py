@@ -83,7 +83,13 @@ def _format_school_row(i: int, school: dict) -> str:
     school_type   = school.get('type', 'Unknown').lower()
     gender        = school.get('gender', 'Unknown').lower()
     accommodation = school.get('accommodation', 'Unknown').lower()
-    pathways      = ', '.join(school.get('pathways_offered', [])) or 'Various pathways'
+    raw_pathways = school.get('pathways_offered', '')
+    if isinstance(raw_pathways, list):
+        pathways = ', '.join(raw_pathways) or 'Various pathways'
+    elif isinstance(raw_pathways, str):
+        pathways = raw_pathways or 'Various pathways'
+    else:
+        pathways = 'Various pathways'
     name_upper    = school.get('school_name', '').upper()
 
     if 'GIRLS' in name_upper and gender != 'girls':
@@ -354,7 +360,13 @@ def _handle_school_search(analysis: dict) -> dict:
 
     response = f"I found some schools matching '{search_term}': "
     for i, school in enumerate(schools[:10], 1):
-        pathways = ', '.join(school.get('pathways_offered', [])) or 'Various pathways'
+        raw_pathways = school.get('pathways_offered', '')
+        if isinstance(raw_pathways, list):
+            pathways = ', '.join(raw_pathways) or 'Various pathways'
+        elif isinstance(raw_pathways, str):
+            pathways = raw_pathways or 'Various pathways'
+        else:
+            pathways = 'Various pathways'
         response += f"{i}. {school['school_name']} ({school['county']}) - Offers: {pathways}. "
     response += "Would you like more details about any of these schools?"
 

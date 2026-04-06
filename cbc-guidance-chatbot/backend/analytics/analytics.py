@@ -50,6 +50,7 @@ class AnalyticsManager:
                       response_time_ms, was_successful, fallback_triggered))
                 self.db.conn.commit()
         except Exception as e:
+            self.db.conn.rollback()  # ADD THIS
             print(f"Error logging query analytics: {e}")
     
     def log_document_usage(self, document_name: str, confidence_score: float) -> None:
@@ -69,6 +70,7 @@ class AnalyticsManager:
                 """, (document_name, doc_hash, confidence_score))
                 self.db.conn.commit()
         except Exception as e:
+            self.db.conn.rollback()  # ADD THIS
             print(f"Error logging document usage: {e}")
     
     def log_feedback(self, query: str, feedback_type: str) -> None:
@@ -85,6 +87,7 @@ class AnalyticsManager:
                 """, (query_hash, topic, feedback_type))
                 self.db.conn.commit()
         except Exception as e:
+            self.db.conn.rollback()  # ADD THIS
             print(f"Error logging feedback: {e}")
     
     def log_knowledge_gap(self, query: str, fallback_reason: str, 
@@ -105,6 +108,7 @@ class AnalyticsManager:
                 """, (query_hash, topic, fallback_reason, suggested_topic))
                 self.db.conn.commit()
         except Exception as e:
+            self.db.conn.rollback()  # ADD THIS
             print(f"Error logging knowledge gap: {e}")
     
     def log_admin_action(self, admin_id: str, action: str, resource_type: str, 
