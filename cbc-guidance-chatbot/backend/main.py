@@ -36,9 +36,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-#initialize core components
-pathway_recommender = PathwayRecommender()
-analytics = AnalyticsManager()
+#lazy initialization functions
+def get_pathway_recommender():
+    from rag.rag_query import get_pathway_recommender as _get
+    return _get()
+
+def get_analytics():
+    from rag.rag_query import get_analytics as _get
+    return _get()
 
 # Database manager will be initialized when needed
 db = None
@@ -263,37 +268,37 @@ def admin_stats(request: Request):
 def get_query_analytics(request: Request, days: int = 7):
     """Get aggregated query analytics - no PII exposed"""
     require_admin(request)
-    return analytics.get_query_analytics(days)
+    return get_analytics().get_query_analytics(days)
 
 @app.get("/admin/analytics/documents")
 def get_document_analytics(request: Request):
     """Get document usage statistics"""
     require_admin(request)
-    return {"documents": analytics.get_document_analytics()}
+    return {"documents": get_analytics().get_document_analytics()}
 
 @app.get("/admin/analytics/feedback")
 def get_feedback_analytics(request: Request, days: int = 7):
     """Get feedback trends by topic"""
     require_admin(request)
-    return analytics.get_feedback_summary(days)
+    return get_analytics().get_feedback_summary(days)
 
 @app.get("/admin/analytics/knowledge-gaps")
 def get_knowledge_gaps(request: Request, limit: int = 10):
     """Get top knowledge gaps - what the bot can't answer"""
     require_admin(request)
-    return {"gaps": analytics.get_knowledge_gaps(limit)}
+    return {"gaps": get_analytics().get_knowledge_gaps(limit)}
 
 @app.get("/admin/analytics/system-health")
 def get_system_health(request: Request, days: int = 7):
     """Get overall system health metrics"""
     require_admin(request)
-    return analytics.get_system_health(days)
+    return get_analytics().get_system_health(days)
 
 @app.get("/admin/audit-log")
 def get_audit_log(request: Request, admin_id: Optional[str] = None, days: int = 30, limit: int = 100):
     """Get admin action audit log - tracks who accessed what and when"""
     require_admin(request)
-    return {"audit_log": analytics.get_admin_audit_log(admin_id, days, limit)}
+    return {"audit_log": get_analytics().get_admin_audit_log(admin_id, days, limit)}
 
 # --- Recent Questions Endpoint ---
 @app.get("/recent-questions")
@@ -435,7 +440,7 @@ def submit_feedback(payload: dict):
     if feedback_type not in allowed_feedback:
         raise HTTPException(status_code=400, detail="feedback_type must be thumbs_up, thumbs_down, or neutral")
 
-    analytics.log_feedback(question, feedback_type)
+    get_analytics().log_feedback(question, feedback_type)
     return {"success": True}
 
 @app.get("/schools")
@@ -509,7 +514,7 @@ def get_pathway_recommendation(request: dict):
     if not profile_data:
         return {"error": "Profile not found"}
     user_profile = UserProfile(**profile_data)
-    recommendation = pathway_recommender.recommend(user_profile)
+    recommendation = get_pathway_recommender().recommend(user_profile)
     return {
         "user_id": user_id,
         "recommendation": recommendation,

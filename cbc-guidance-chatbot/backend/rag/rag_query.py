@@ -50,11 +50,28 @@ from .text_cleaning import (
     build_personalized_guidance_response,
 )
 
-# ── Module-level singletons ───────────────────────────────────────────────────
-query_analyzer     = QueryAnalyzer()
-pathway_recommender = PathwayRecommender()
-analytics = AnalyticsManager()
+# ── Lazy initialization functions ───────────────────────────────────────────────────
+_query_analyzer = None
+_pathway_recommender = None
+_analytics = None
 
+def get_query_analyzer():
+    global _query_analyzer
+    if _query_analyzer is None:
+        _query_analyzer = QueryAnalyzer()
+    return _query_analyzer
+
+def get_pathway_recommender():
+    global _pathway_recommender
+    if _pathway_recommender is None:
+        _pathway_recommender = PathwayRecommender()
+    return _pathway_recommender
+
+def get_analytics():
+    global _analytics
+    if _analytics is None:
+        _analytics = AnalyticsManager()
+    return _analytics
 
 # ── Thin wrapper so call sites don't need to pass embeddings explicitly ───────
 def _save_history(user_id, question, answer, mode, metadata=None):
@@ -91,7 +108,7 @@ def query_rag(req: QueryRequest) -> dict:
             _save_history(user_id, question, greeting_answer, "general",
                           {"source_folder": "greeting", "validated": True, "intent": "greeting"})
             elapsed_ms = int((time.time() - start_time) * 1000)
-            analytics.log_query(question, 1.0, 0, elapsed_ms, True, False)
+            get_analytics().log_query(question, 1.0, 0, elapsed_ms, True, False)
             return {
                 "question": question,
                 "answer":   greeting_answer,
@@ -136,12 +153,12 @@ def query_rag(req: QueryRequest) -> dict:
                 profile_context = build_profile_context(profile_data)
 
                 user_profile_obj       = UserProfile(**profile_data)
-                pathway_recommendation = pathway_recommender.recommend(user_profile_obj)
+                pathway_recommendation = get_pathway_recommender().recommend(user_profile_obj)
                 if pathway_recommendation.get("basis") == "no_data":
                     pathway_recommendation = None
 
         # ── 3. Analyse query intent ───────────────────────────────────────────
-        analysis   = query_analyzer.analyze_query(question, user_id)
+        analysis   = get_query_analyzer().analyze_query(question, user_id)
         query_type = analysis.get("query_type")
 
         # ── 4. Personalized guidance shortcut ─────────────────────────────────
@@ -153,7 +170,7 @@ def query_rag(req: QueryRequest) -> dict:
                           {"source_folder": "personalized_logic", "validated": True,
                            "intent": "personalized_guidance"})
             elapsed_ms = int((time.time() - start_time) * 1000)
-            analytics.log_query(question, 0.9, 0, elapsed_ms, True, False)
+            get_analytics().log_query(question, 0.9, 0, elapsed_ms, True, False)
             return {
                 "question":             question,
                 "answer":               answer,
@@ -176,7 +193,7 @@ def query_rag(req: QueryRequest) -> dict:
             _save_history(user_id, question, db_response.get("answer", ""), "database",
                           {"source_folder": "database", "validated": True, "intent": query_type})
             elapsed_ms = int((time.time() - start_time) * 1000)
-            analytics.log_query(question, 0.85, 1, elapsed_ms, True, False)
+            get_analytics().log_query(question, 0.85, 1, elapsed_ms, True, False)
             return db_response
 
         # ── 6. Conversation continuation shortcut ─────────────────────────────
@@ -186,7 +203,7 @@ def query_rag(req: QueryRequest) -> dict:
                           {"source_folder": "continuation", "validated": True,
                            "intent": "continuation"})
             elapsed_ms = int((time.time() - start_time) * 1000)
-            analytics.log_query(question, 0.8, 0, elapsed_ms, True, False)
+            get_analytics().log_query(question, 0.8, 0, elapsed_ms, True, False)
             return cont_response
 
         # ── 7. Cache lookup ───────────────────────────────────────────────────
@@ -199,7 +216,7 @@ def query_rag(req: QueryRequest) -> dict:
                            "validated":  cached.get("validated", True),
                            "intent":     analysis.get("intent")})
             elapsed_ms = int((time.time() - start_time) * 1000)
-            analytics.log_query(question, cached.get("confidence_score", 0.85), 1, elapsed_ms, True, False)
+            get_analytics().log_query(question, cached.get("confidence_score", 0.85), 1, elapsed_ms, True, False)
             return cached
 
         # ── 8. Pinecone vector search ─────────────────────────────────────────
@@ -219,7 +236,7 @@ def query_rag(req: QueryRequest) -> dict:
                           {"source_folder": "pinecone", "validated": False,
                            "intent": analysis.get("intent"), "no_docs_found": True})
             elapsed_ms = int((time.time() - start_time) * 1000)
-            analytics.log_knowledge_gap(question, "No matching documents", "General knowledge base")
+            get_analytics().log_knowledge_gap(question, "No matching documents", "General knowledge base")
             return fallback
 
         top_docs      = [doc for doc, _ in docs_with_scores[:4]]
@@ -284,9 +301,9 @@ def query_rag(req: QueryRequest) -> dict:
                        "intent":    analysis.get("intent")})
 
         elapsed_ms = int((time.time() - start_time) * 1000)
-        analytics.log_query(question, confidence_score, len(top_docs), elapsed_ms, True, False)
+        get_analytics().log_query(question, confidence_score, len(top_docs), elapsed_ms, True, False)
         for doc in top_docs:
-            analytics.log_document_usage(doc.metadata.get("source", "unknown"), confidence_score)
+            get_analytics().log_document_usage(doc.metadata.get("source", "unknown"), confidence_score)
 
         mode = "personalized" if user_id else "general"
         return {
