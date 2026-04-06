@@ -47,7 +47,11 @@ class DatabaseManager:
         #initialize database connection
         database_url = os.getenv("DATABASE_URL")
         if database_url:
-            self.conn = psycopg2.connect(database_url)
+            self.conn = psycopg2.connect(
+                database_url,
+                connect_timeout=10,
+                options="-c statement_timeout=30000"
+            )
         else:
             db_host = os.getenv("DB_HOST", "localhost")
             db_name = os.getenv("DB_NAME", "cbc_chatbot")
@@ -59,7 +63,9 @@ class DatabaseManager:
                 database=db_name,
                 user=db_user,
                 password=db_password,
-                port=db_port
+                port=db_port,
+                connect_timeout=10,
+                options="-c statement_timeout=30000"
             )
         self._ensure_user_columns()
         self._ensure_profile_columns()
@@ -171,14 +177,18 @@ class DatabaseManager:
             # Use fresh connection to avoid transaction issues
             database_url = os.getenv("DATABASE_URL")
             if database_url:
-                fresh_conn = psycopg2.connect(database_url)
+                fresh_conn = psycopg2.connect(
+                    database_url,
+                    connect_timeout=10
+                )
             else:
                 fresh_conn = psycopg2.connect(
                     host=os.getenv("DB_HOST", "localhost"),
                     database=os.getenv("DB_NAME", "cbc_chatbot"),
                     user=os.getenv("DB_USER", "postgres"),
                     password=os.getenv("DB_PASSWORD"),
-                    port=os.getenv("DB_PORT", "5432")
+                    port=os.getenv("DB_PORT", "5432"),
+                    connect_timeout=10
                 )
             
             with fresh_conn.cursor(cursor_factory=RealDictCursor) as cursor:
@@ -768,14 +778,18 @@ class DatabaseManager:
             # Use fresh connection to avoid transaction issues
             database_url = os.getenv("DATABASE_URL")
             if database_url:
-                fresh_conn = psycopg2.connect(database_url)
+                fresh_conn = psycopg2.connect(
+                    database_url,
+                    connect_timeout=10
+                )
             else:
                 fresh_conn = psycopg2.connect(
                     host=os.getenv("DB_HOST", "localhost"),
                     database=os.getenv("DB_NAME", "cbc_chatbot"),
                     user=os.getenv("DB_USER", "postgres"),
                     password=os.getenv("DB_PASSWORD"),
-                    port=os.getenv("DB_PORT", "5432")
+                    port=os.getenv("DB_PORT", "5432"),
+                    connect_timeout=10
                 )
             
             with fresh_conn.cursor(cursor_factory=RealDictCursor) as cur:
