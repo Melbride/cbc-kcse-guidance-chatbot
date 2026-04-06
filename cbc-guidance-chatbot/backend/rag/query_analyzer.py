@@ -45,9 +45,24 @@ from config_loader import (
     load_subjects_from_db,
 )
 
-# Loaded once at startup from PostgreSQL — no hardcoded lists here
-_COUNTIES: list[str]     = load_counties_from_db()
-_ALL_SUBJECTS: list[str] = load_subjects_from_db()
+# Lazy-loaded from PostgreSQL — no hardcoded lists here
+_COUNTIES: list[str] = []
+_ALL_SUBJECTS: list[str] = []
+
+def _ensure_db_data_loaded():
+    global _COUNTIES, _ALL_SUBJECTS
+    if not _COUNTIES:
+        try:
+            _COUNTIES = load_counties_from_db()
+        except Exception as e:
+            print(f"Warning: Could not load counties: {e}")
+            _COUNTIES = []
+    if not _ALL_SUBJECTS:
+        try:
+            _ALL_SUBJECTS = load_subjects_from_db()
+        except Exception as e:
+            print(f"Warning: Could not load subjects: {e}")
+            _ALL_SUBJECTS = []
 
 # Build subject → pathway lookup from pathway_subject_priority.json.
 # If a subject appears in multiple pathways, highest weight wins.
@@ -93,6 +108,7 @@ class QueryAnalyzer:
           3. Simple fallback if LLM is unavailable
           4. Tag as personalized or general
         """
+        _ensure_db_data_loaded()  # ADD THIS LINE
         requested_count = self._extract_requested_count(question)
 
         analysis = self._analyze_school_query(question, user_id)
