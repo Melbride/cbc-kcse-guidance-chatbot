@@ -1,20 +1,22 @@
 """
 LLM prompt and explanation utilities for recommendations.
 """
+from groq import Groq
 import os
 import json
-import requests
 import time
 from dotenv import load_dotenv
 from .conversation_context import get_conversation_context, update_conversation_context
 
 load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# Rate limiting cache
-_last_api_call = {"gemini": 0, "mistral": 0}
-_MIN_API_INTERVAL = 1.0  # seconds between API calls
+# Initialize Groq client directly
+try:
+    client = Groq(api_key=GROQ_API_KEY)
+except Exception as e:
+    print(f"Error initializing Groq client: {e}")
+    client = None
 
 
 def normalize_user_profile(user_profile):
@@ -56,55 +58,6 @@ def build_program_lines(results):
             lines.append(f"{i}. {res}")
     return "\n".join(lines)
 
-def call_gemini(prompt):
-    """Direct Gemini API call with rate limiting"""
-    current_time = time.time()
-    if current_time - _last_api_call["gemini"] < _MIN_API_INTERVAL:
-        time.sleep(_MIN_API_INTERVAL - (current_time - _last_api_call["gemini"]))
-    
-    try:
-        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
-        headers = {"Content-Type": "application/json"}
-        data = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 1000}
-        }
-        response = requests.post(f"{url}?key={GEMINI_API_KEY}", headers=headers, json=data, timeout=30)
-        response.raise_for_status()
-        _last_api_call["gemini"] = time.time()
-        result = response.json()
-        return result["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as e:
-        print(f"Gemini API error: {e}")
-        return None
-
-def call_mistral(prompt):
-    """Direct Mistral API call with rate limiting"""
-    current_time = time.time()
-    if current_time - _last_api_call["mistral"] < _MIN_API_INTERVAL:
-        time.sleep(_MIN_API_INTERVAL - (current_time - _last_api_call["mistral"]))
-    
-    try:
-        url = "https://api.mistral.ai/v1/chat/completions"
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {MISTRAL_API_KEY}"
-        }
-        data = {
-            "model": "mistral-tiny",
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": 1000,
-            "temperature": 0.3
-        }
-        response = requests.post(url, headers=headers, json=data, timeout=30)
-        response.raise_for_status()
-        _last_api_call["mistral"] = time.time()
-        result = response.json()
-        return result["choices"][0]["message"]["content"]
-    except Exception as e:
-        print(f"Mistral API error: {e}")
-        return None
-
 def rerank_with_llm(results, user_profile, conversation_id=None, user_input=None):
     """
     Use LLM to re-rank results based on user profile (interests, goals, etc).
@@ -135,7 +88,7 @@ Name: {profile.get("name") or "Not provided"}
 Mean grade: {profile.get("mean_grade") or "Not provided"}
 Subjects: {subjects_text}
 Interests: {profile.get("interests") or "Not yet provided"}
-Career goals: {profile.get("career_goals") or "Not yet provided"}
+Career goals: {profile.get("career_goals") or "Not provided"}
 
 AVAILABLE PROGRAMS:
 {build_program_lines(results)}
@@ -163,18 +116,23 @@ Write the answer as a natural reply, not as a formal report."""
         if ctx:
             prompt = f"PREVIOUS CONTEXT: Student asked '{ctx.get('last_user_input', '')}' and got advice about '{ctx.get('last_system_response', '')}'.\n\n" + prompt
     
-    # Try Gemini first, then Mistral
-    response = call_gemini(prompt)
-    if not response:
-        response = call_mistral(prompt)
-    
-    if response:
+    # Use Groq client directly
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_tokens=1000
+        )
+        response_text = response.choices[0].message.content
+        
         # Update context
         if conversation_id and user_input:
-            update_conversation_context(conversation_id, user_input, response)
-        return response
-    else:
-        # Only use fallback if both LLMs fail
+            update_conversation_context(conversation_id, user_input, response_text)
+        return response_text
+    except Exception as e:
+        print(f"Groq client error: {e}")
+        # Only use fallback if LLM fails
         return simple_rerank(results, profile, user_input=user_input)
 
 def simple_rerank(results, user_profile, user_input=None):
@@ -207,33 +165,32 @@ def explain_recommendation(program, user_profile):
     prompt = f"""You are a KCSE career guidance expert.
 
 Respond directly to the user in second person using "you" and "your".
-Do not refer to the user in third person.
+Do not refer to user in third person.
 Do not guess or infer gender.
 Do not invent missing goals or interests.
 
 Explain why this program is suitable for this user.
-
-STUDENT PROFILE:
-{json.dumps(user_profile, indent=2)}
+Keep it under 150 words and be encouraging:
 
 PROGRAM: {program}
 
-Provide a concise, student-friendly explanation focusing on:
-1. How their subjects match the requirements
-2. Career opportunities after completion
-3. Why this program fits their goals
+USER PROFILE: {normalize_user_profile(user_profile)}
 
-Keep it under 150 words and be encouraging:"""
+Start immediately with the explanation."""
     
-    # Try Gemini first, then Mistral
-    response = call_gemini(prompt)
-    if not response:
-        response = call_mistral(prompt)
-    
-    if not response:
+    # Use Groq client directly
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_tokens=150
+        )
+        response_text = response.choices[0].message.content
+        return response_text.strip()
+    except Exception as e:
+        print(f"Groq client error: {e}")
         return f"This program aligns well with your academic background. Consider reviewing the specific admission requirements and career opportunities in this field."
-    
-    return response
 
 
 def generate_general_explanation(topic, user_profile=None, matched_results=None):
@@ -337,15 +294,20 @@ MATCHED DATABASE ROWS:
 
 Start immediately with the reply. Do not add headings, markdown headers, or bold text."""
 
-    response = call_gemini(prompt)
-    if not response:
-        response = call_mistral(prompt)
-
-    if response:
-        return response.strip()
-
-    return (
-        "You do seem to have some workable options in the current database. "
-        "I do not yet have enough detail to rank them confidently from the database alone, but I can help you narrow them by field, such as technology, business, teaching, health, or hands-on skills. "
-        "Which area would you like to focus on next?"
-    )
+    # Use Groq client directly
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_tokens=500
+        )
+        response_text = response.choices[0].message.content
+        return response_text.strip()
+    except Exception as e:
+        print(f"Groq client error: {e}")
+        return (
+            "You do seem to have some workable options in the current database. "
+            "I do not yet have enough detail to rank them confidently from the database alone, but I can help you narrow them by field, such as technology, business, teaching, health, or hands-on skills. "
+            "Which area would you like to focus on next?"
+        )

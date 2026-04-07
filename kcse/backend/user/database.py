@@ -5,7 +5,7 @@ Handles user CRUD, admin actions, and DB connection logic.
 """
 import json
 from typing import Optional
-from backend.results import get_db_connection
+from results import get_db_connection
 import uuid
 from fastapi import HTTPException
 import bcrypt

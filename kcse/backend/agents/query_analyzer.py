@@ -1,17 +1,19 @@
 import os
 import logging
 import json as pyjson
-import requests
-import time
 from dotenv import load_dotenv
+from groq import Groq
+
 load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 logger = logging.getLogger("kcse_query_analyzer")
 
-# Rate limiting cache
-_last_api_call = {"gemini": 0, "mistral": 0}
-_MIN_API_INTERVAL = 1.0  # seconds between API calls
+# Initialize Groq client directly
+try:
+    client = Groq(api_key=GROQ_API_KEY)
+except Exception as e:
+    print(f"Error initializing Groq client: {e}")
+    client = None
 
 def analyze_query(user_query: str) -> dict:
     """
@@ -36,28 +38,25 @@ def analyze_query(user_query: str) -> dict:
         """
     )
     
-    # Try Gemini first with rate limiting
+    # Use Groq client directly
     try:
-        response = call_gemini_with_rate_limit(llm_prompt)
-        if response:
-            analysis = parse_llm_response(response, user_query)
-            if analysis:
-                return analysis
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": llm_prompt}],
+            temperature=0.1,
+            max_tokens=500
+        )
+        response_text = response.choices[0].message.content
+        analysis = parse_llm_response(response_text, user_query)
+        if analysis:
+            logger.info(f"Groq successfully analyzed query: {user_query}")
+            return analysis
     except Exception as e:
-        logger.error(f"Gemini query analysis error: {e}")
-    
-    # Try Mistral with rate limiting
-    try:
-        response = call_mistral_with_rate_limit(llm_prompt)
-        if response:
-            analysis = parse_llm_response(response, user_query)
-            if analysis:
-                return analysis
-    except Exception as e:
-        logger.error(f"Mistral query analysis error: {e}")
+        logger.error(f"Groq query analysis error: {e}")
+        return None
     
     # Use intelligent fallback
-    logger.warning("Both LLMs failed for query analysis, using intelligent keyword extraction")
+    logger.warning("Groq failed for query analysis, using intelligent keyword extraction")
     return intelligent_keyword_analysis(user_query) or keyword_fallback(user_query)
 
 def intelligent_keyword_analysis(user_query: str) -> dict:
@@ -138,62 +137,11 @@ def parse_llm_response(response: str, user_query: str) -> dict:
         logger.error(f"Failed to parse LLM response: {e}")
         return None
 
-def call_gemini_with_rate_limit(prompt):
-    """Gemini API call with rate limiting"""
-    current_time = time.time()
-    if current_time - _last_api_call["gemini"] < _MIN_API_INTERVAL:
-        time.sleep(_MIN_API_INTERVAL - (current_time - _last_api_call["gemini"]))
-    
-    try:
-        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
-        headers = {"Content-Type": "application/json"}
-        data = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 500}
-        }
-        response = requests.post(f"{url}?key={GEMINI_API_KEY}", headers=headers, json=data, timeout=30)
-        response.raise_for_status()
-        _last_api_call["gemini"] = time.time()
-        result = response.json()
-        return result["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as e:
-        logger.error(f"Gemini API error: {e}")
-        return None
-
-def call_mistral_with_rate_limit(prompt):
-    """Mistral API call with rate limiting"""
-    current_time = time.time()
-    if current_time - _last_api_call["mistral"] < _MIN_API_INTERVAL:
-        time.sleep(_MIN_API_INTERVAL - (current_time - _last_api_call["mistral"]))
-    
-    try:
-        url = "https://api.mistral.ai/v1/chat/completions"
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {MISTRAL_API_KEY}"
-        }
-        data = {
-            "model": "mistral-tiny",
-            "messages": [
-                {"role": "user", "content": prompt}
-            ],
-            "max_tokens": 500,
-            "temperature": 0.3
-        }
-        response = requests.post(url, headers=headers, json=data, timeout=30)
-        response.raise_for_status()
-        _last_api_call["mistral"] = time.time()
-        result = response.json()
-        return result["choices"][0]["message"]["content"]
-    except Exception as e:
-        logger.error(f"Mistral API error: {e}")
-        return None
-
 def keyword_fallback(user_query: str) -> dict:
     """
     Emergency fallback when all else fails
     """
-    user_query_lower = user_query.lower()
+    user_query_lower = user_query.lower().strip()
     
     # Extract location keywords
     location_keywords = ["nairobi", "mombasa", "kisumu", "nakuru", "eldoret"]

@@ -5,18 +5,18 @@ import fastapi
 import logging
 import json
 from collections import Counter
-from backend.results import get_db_connection
+from results import get_db_connection
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from backend.user.database import create_user_profile, get_user_profile_by_email, delete_user_profile, list_all_users, ensure_user_profiles_schema
+from user.database import create_user_profile, get_user_profile_by_email, delete_user_profile, list_all_users, ensure_user_profiles_schema
 import bcrypt
-from backend.user.feedback import store_feedback, list_feedback
-from backend.user.admin_store import create_announcement, list_announcements, list_support_content, create_support_content, delete_support_content, update_support_content, list_question_logs, summarize_question_logs, update_question_review, create_question_log, question_status_summary
-from backend.search.search import perform_semantic_search
-from backend.career import router as career_router
-from backend.recommendation.conversation_context import list_recent_questions, list_top_questions
+from user.feedback import store_feedback, list_feedback
+from user.admin_store import create_announcement, list_announcements, list_support_content, create_support_content, delete_support_content, update_support_content, list_question_logs, summarize_question_logs, update_question_review, create_question_log, question_status_summary
+from search.search import perform_semantic_search
+from career import router as career_router
+from recommendation.conversation_context import list_recent_questions, list_top_questions
 logging.basicConfig(level=logging.INFO, force=True)
 app = FastAPI()
 ADMIN_TOKEN = "kcse_admin_token_2024"
@@ -421,3 +421,18 @@ def semantic_search(request: SearchRequest):
             except Exception:
                 pass
         raise
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Server startup
+if __name__ == "__main__":
+    import uvicorn
+    print("🚀 Starting KCSE Server on http://127.0.0.1:8000")
+    uvicorn.run(app, host="127.0.0.1", port=8000)

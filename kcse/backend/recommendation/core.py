@@ -1,7 +1,7 @@
 """
 Core recommendation logic: evaluation, scoring, and generation of recommendations and alternatives.
 """
-from backend.results import GRADE_POINTS, fetch_courses, fetch_requirements, fetch_institutions, get_db_connection
+from results import GRADE_POINTS, fetch_courses, fetch_requirements, fetch_institutions, get_db_connection
 import logging
 
 logger = logging.getLogger("kcse_search")

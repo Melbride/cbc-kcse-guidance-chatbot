@@ -3,7 +3,7 @@
 Feedback management utilities for the KCSE backend.
 Handles feedback CRUD and related DB logic.
 """
-from backend.results import get_db_connection
+from results import get_db_connection
 from fastapi import HTTPException
 
 def store_feedback(user_id, recommendation_id, feedback_text, rating):

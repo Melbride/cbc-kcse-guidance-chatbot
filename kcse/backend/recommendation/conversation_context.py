@@ -1,7 +1,7 @@
 """
 Handles conversation context storage and retrieval for recommendations.
 """
-from backend.results import get_db_connection
+from results import get_db_connection
 from fastapi import HTTPException
 
 def update_conversation_context(conversation_id, user_input, system_response):

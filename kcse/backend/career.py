@@ -29,7 +29,7 @@ def career_exploration(request: CareerExplorationRequest):
     user_mean = GRADE_POINTS[mean_grade]
     pathways = []
     try:
-        from backend.results import get_db_connection
+        from results import get_db_connection
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute("SELECT id, name, min_grade_requirement FROM career_categories")

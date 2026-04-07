@@ -4,11 +4,11 @@ Search and recommendation API logic for the KCSE backend.
 Handles semantic search, reranking, and related utilities.
 """
 from fastapi import HTTPException
-from backend.agents.query_analyzer import analyze_query
-from backend.recommendation.conversation_context import get_conversation_context, update_conversation_context
-from backend.recommendation.llm_utils import generate_general_explanation, generate_profile_guidance
-from backend.results import GRADE_POINTS
-from backend.user.admin_store import create_question_log
+from agents.query_analyzer import analyze_query
+from recommendation.conversation_context import get_conversation_context, update_conversation_context
+from recommendation.llm_utils import generate_general_explanation, generate_profile_guidance
+from results import GRADE_POINTS
+from user.admin_store import create_question_log
 import subprocess
 import sys
 import os
