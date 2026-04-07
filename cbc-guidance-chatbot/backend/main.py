@@ -25,9 +25,17 @@ from analytics.analytics import AnalyticsManager
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
+
 #initialize fastapi application
 app = FastAPI(title="CBC/KCSE Guidance Chatbot")
 
+@app.post("/query/")
+def query_endpoint(req: QueryRequest):
+    print("=== /query/ endpoint hit ===", flush=True)
+    result = query_rag(req)
+    print(f"[QUERY ENDPOINT] Question: {getattr(req, 'question', None)}", flush=True)
+    print(f"[QUERY ENDPOINT] Answer: {result.get('answer', None)}", flush=True)
+    return result
 #configure cors middleware for cross-origin requests
 app.add_middleware(
     CORSMiddleware,

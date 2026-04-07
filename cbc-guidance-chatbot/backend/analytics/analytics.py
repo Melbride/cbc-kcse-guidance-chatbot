@@ -64,8 +64,8 @@ class AnalyticsManager:
                     (document_name, document_hash, retrieval_count, avg_confidence_score, last_used_at)
                     VALUES (%s, %s, 1, %s, NOW())
                     ON CONFLICT (document_hash) DO UPDATE SET
-                        retrieval_count = retrieval_count + 1,
-                        avg_confidence_score = (avg_confidence_score + EXCLUDED.avg_confidence_score) / 2,
+                        retrieval_count = document_usage.retrieval_count + 1,
+                        avg_confidence_score = (document_usage.avg_confidence_score + EXCLUDED.avg_confidence_score) / 2,
                         last_used_at = NOW()
                 """, (document_name, doc_hash, confidence_score))
                 self.db.conn.commit()
@@ -103,7 +103,7 @@ class AnalyticsManager:
                     (query_hash, topic_category, fallback_reason, suggested_document_topic, count)
                     VALUES (%s, %s, %s, %s, 1)
                     ON CONFLICT (query_hash) DO UPDATE SET
-                        count = count + 1,
+                        count = knowledge_gap_log.count + 1,
                         last_occurred_at = NOW()
                 """, (query_hash, topic, fallback_reason, suggested_topic))
                 self.db.conn.commit()

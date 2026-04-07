@@ -201,13 +201,14 @@ class QueryAnalyzer:
         subjects = self._extract_subjects(question)
         county   = self._extract_county(q)
         pathway  = self._extract_pathway(q)
+        gender   = self._extract_gender(q)
 
         if subjects:
-            return _db_result("schools_by_subjects", subjects=subjects, county=county)
+            return _db_result("schools_by_subjects", subjects=subjects, county=county, gender=gender)
         if pathway:
-            return _db_result("schools_by_pathway", pathway=pathway, county=county)
+            return _db_result("schools_by_pathway", pathway=pathway, county=county, gender=gender)
         if county:
-            return _db_result("schools_by_county", county=county)
+            return _db_result("schools_by_county", county=county, gender=gender)
 
         return _db_result("school_search", search_term=self._extract_search_term(question))
 
@@ -275,6 +276,20 @@ class QueryAnalyzer:
         for county in _COUNTIES:
             if county in q:
                 return county.title()
+        return None
+
+    def _extract_gender(self, question: str) -> Optional[str]:
+        """
+        Extract gender from question.
+        Looks for 'girls', 'boys', 'mixed', 'co-ed', etc.
+        """
+        q = question.lower()
+        if 'girls' in q:
+            return 'girls'
+        elif 'boys' in q:
+            return 'boys'
+        elif 'mixed' in q or 'co-ed' in q or 'coed' in q:
+            return 'mixed'
         return None
 
     def _extract_subjects(self, question: str) -> list[str]:
@@ -392,7 +407,7 @@ Return JSON with these fields:
 Return only valid JSON, no extra text."""
 
             response = client.chat.completions.create(
-                model="llama3-8b-8192",
+                model="llama-3.1-8b-instant",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=200,
                 temperature=0.1,

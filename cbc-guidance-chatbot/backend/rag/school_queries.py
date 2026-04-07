@@ -110,6 +110,7 @@ def _format_school_row(i: int, school: dict) -> str:
 def _handle_schools_by_pathway(analysis: dict) -> dict:
     pathway           = analysis.get("pathway")
     county            = analysis.get("county")
+    gender            = analysis.get("gender")
     original_subjects = analysis.get("original_subjects")
     requested_count   = analysis.get("requested_count", 10)
 
@@ -119,10 +120,10 @@ def _handle_schools_by_pathway(analysis: dict) -> dict:
             "sources": "database", "confidence": "low"
         }
 
-    schools = get_db().get_schools_by_pathway(pathway, county)
+    schools = get_db().get_schools_by_pathway(pathway, county, gender=gender)
     if not schools:
         return {
-            "answer": f"I couldn't find schools offering {pathway} pathway{' in ' + county if county else ''}.",
+            "answer": f"I couldn't find {gender + ' ' if gender else ''}schools offering {pathway} pathway{' in ' + county if county else ''}.",
             "sources": "database", "confidence": "low"
         }
 
@@ -149,6 +150,7 @@ def _handle_schools_by_pathway(analysis: dict) -> dict:
 
 def _handle_schools_by_county(analysis: dict) -> dict:
     county          = analysis.get("county")
+    gender          = analysis.get("gender")
     requested_count = analysis.get("requested_count", 10)
 
     if not county:
@@ -157,10 +159,10 @@ def _handle_schools_by_county(analysis: dict) -> dict:
             "sources": "database", "confidence": "low"
         }
 
-    schools = get_db().get_schools_by_county(county)
+    schools = get_db().get_schools_by_county(county, gender=gender)
     if not schools:
         return {
-            "answer": f"I couldn't find schools in {county}.",
+            "answer": f"I couldn't find {gender + ' ' if gender else ''}schools in {county}.",
             "sources": "database", "confidence": "low"
         }
 

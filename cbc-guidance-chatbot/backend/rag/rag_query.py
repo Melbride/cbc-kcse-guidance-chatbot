@@ -24,6 +24,7 @@ from dotenv import load_dotenv
 import time
 from pathlib import Path
 from analytics.analytics import AnalyticsManager
+import sys
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
@@ -95,7 +96,13 @@ def query_rag(req: QueryRequest) -> dict:
     start_time = time.time()
     question = req.question
     user_id  = req.user_id
-    print(f"DEBUG: user_id={user_id}, question={question}")
+    print(f"=== RAG QUERY ===")
+    print(f"Question: {question}")
+    print(f"User ID: {user_id}")
+    print(f"==================")
+    
+    # This should print to console immediately
+    sys.stdout.flush()
 
     # ── 1. Greeting shortcut ──────────────────────────────────────────────────
     try:
@@ -223,12 +230,18 @@ def query_rag(req: QueryRequest) -> dict:
         # Career content, pathway explanations, curriculum questions all go here.
         # The actual subject/school data lives in PostgreSQL (handled above).
         retrieval_query  = analysis.get("reformulated_query", question)
+        print(f"DEBUG: Retrieval query: {retrieval_query}")
+        print(f"DEBUG: Analysis source: {analysis.get('source')}")
+        print(f"DEBUG: Query type: {analysis.get('query_type')}")
+        
         docs_with_scores = retrieve_documents(retrieval_query, k=5)
+        print(f"DEBUG: Retrieved {len(docs_with_scores)} documents")
 
         if not docs_with_scores:
+            fallback_answer = "Based on the documents I have I do not have information about that. You may want to ask your teacher or check the official CBC curriculum guides for more details."
             fallback = {
                 "question": question,
-                "answer":   "Ask your teacher for more details on this topic.",
+                "answer":   fallback_answer,
                 "mode":     "general",
                 "metadata": {"no_docs_found": True},
             }
@@ -279,10 +292,7 @@ def query_rag(req: QueryRequest) -> dict:
         if query_type == "subject_count_query":
             answer = normalize_subject_count_answer(question, context, answer)
 
-        # Limit to 4 sentences
-        sentences = re.split(r'(?<=[.!?]) +', answer)
-        if len(sentences) > 4:
-            answer = " ".join(sentences[:4])
+        # Allow full answers - no sentence limit for comprehensive responses
 
         answer = strip_leading_filler(answer, question)
 
@@ -291,8 +301,26 @@ def query_rag(req: QueryRequest) -> dict:
         is_grounded       = validation_result.get("is_grounded", True)
         confidence_score  = 0.9 if is_grounded else 0.6
 
-        if not is_grounded and validation_result.get("confidence", 1) < 0.3:
-            answer = "Ask your teacher for more details on this topic."
+        # Additional validation: Check for out-of-context responses
+        question_lower = question.lower()
+        answer_lower = answer.lower()
+        
+        # Check for completely out-of-context responses
+        out_of_context_indicators = [
+            ("who developed" in question_lower and "computer" in answer_lower),
+            ("infrastructure" in question_lower and ("transport" in answer_lower or "sustainability" in answer_lower)),
+            ("cbc" in question_lower and ("computer" in answer_lower or "transport" in answer_lower)),
+            ("school" in question_lower and ("computer" in answer_lower or "transport" in answer_lower)),
+            ("infrastructure in schools" in question_lower and ("sustainability" in answer_lower or "development" in answer_lower)),
+            ("lack of infrastructure" in question_lower and ("sustainability" in answer_lower or "development" in answer_lower)),
+            # More specific patterns
+            ("infrastructure in schools" in question_lower and ("peer training" in answer_lower or "mentorship" in answer_lower)),
+            ("lack of infrastructure" in question_lower and ("peer training" in answer_lower or "mentorship" in answer_lower)),
+        ]
+        
+        if any(out_of_context_indicators) or (not is_grounded and validation_result.get("confidence", 1) < 0.3):
+            answer = "Based on the documents I have I do not have information about that. You may want to ask your teacher or check the official CBC curriculum guides for more details."
+            confidence_score = 0.2
 
         _save_history(user_id, question, answer, "general",
                       {"source_folder": source_folder,
