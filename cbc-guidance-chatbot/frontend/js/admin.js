@@ -1,7 +1,34 @@
 // Admin dashboard JS for CBC Guidance Chatbot
 // Handles fetching and rendering for Users, Schools, Documents, Analytics
 
-const API_BASE = 'http://localhost:8001';
+// Dynamic API_BASE for development vs production
+const API_BASE = (() => {
+    const hostname = window.location.hostname;
+    
+    // Development environments
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return 'http://localhost:8000';
+    }
+    
+    // Production environments
+    if (hostname.includes('netlify.app') || hostname.includes('netlify.com')) {
+        // Frontend on Netlify, backend on Render
+        return 'https://cbc-kcse-guidance-chatbot.onrender.com';
+    }
+    
+    // If frontend is also on Render (different service)
+    if (hostname.includes('onrender.com')) {
+        // Check if this is a frontend service
+        if (hostname.includes('frontend') || hostname.includes('-web')) {
+            return 'https://cbc-kcse-guidance-chatbot.onrender.com';
+        }
+        // Otherwise assume same origin
+        return '';
+    }
+    
+    // Default: same origin
+    return '';
+})();
 
 // Chart instances
 let queryPerformanceChart = null;

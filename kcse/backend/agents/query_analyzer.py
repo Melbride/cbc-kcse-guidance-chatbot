@@ -61,24 +61,32 @@ def analyze_query(user_query: str) -> dict:
 
 def intelligent_keyword_analysis(user_query: str) -> dict:
     """
-    Intelligent analysis without API calls for common patterns
+    Intelligent analysis with semantic understanding and context awareness
     """
     user_query_lower = user_query.lower().strip()
     
-    # Handle general career guidance questions
-    general_patterns = [
-        ("what courses can i pursue", "general_career_guidance"),
-        ("what can i study", "general_career_guidance"), 
-        ("career options", "general_career_guidance"),
-        ("what should i study", "general_career_guidance"),
-        ("courses for my grades", "general_career_guidance"),
-        ("what programmes", "general_career_guidance"),
-        ("career advice", "general_career_guidance")
+    # Use semantic similarity for intent detection
+    career_guidance_indicators = [
+        "guidance", "advice", "help", "suggest", "recommend", "what should", "what can",
+        "career options", "study", "pursue", "courses", "programmes", "based on my profile",
+        "updated my profile", "interests", "goals", "future", "path"
     ]
     
-    for pattern, intent in general_patterns:
-        if pattern in user_query_lower:
-            return {"subject": "career_guidance", "filters": {}, "intent": intent}
+    profile_update_indicators = [
+        "update profile", "change profile", "edit profile", "modify profile", 
+        "let me update", "want to update", "going to update"
+    ]
+    
+    # Calculate semantic similarity scores
+    career_score = sum(1 for indicator in career_guidance_indicators if indicator in user_query_lower)
+    profile_score = sum(1 for indicator in profile_update_indicators if indicator in user_query_lower)
+    
+    # Context-aware decision making
+    if profile_score >= 1 and ("profile" in user_query_lower or "update" in user_query_lower):
+        return {"subject": "profile_update", "filters": {}, "intent": "profile_update_intent"}
+    
+    if career_score >= 2 or (career_score >= 1 and any(word in user_query_lower for word in ["profile", "interests", "goals"])):
+        return {"subject": "career_guidance", "filters": {}, "intent": "general_career_guidance"}
     
     # Handle specific subject queries with location
     subject_location_patterns = [

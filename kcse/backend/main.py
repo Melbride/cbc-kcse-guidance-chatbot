@@ -10,7 +10,7 @@ from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from user.database import create_user_profile, get_user_profile_by_email, delete_user_profile, list_all_users, ensure_user_profiles_schema
+from user.database import create_user_profile, get_user_profile_by_email, update_user_profile, delete_user_profile, list_all_users, ensure_user_profiles_schema
 import bcrypt
 from user.feedback import store_feedback, list_feedback
 from user.admin_store import create_announcement, list_announcements, list_support_content, create_support_content, delete_support_content, update_support_content, list_question_logs, summarize_question_logs, update_question_review, create_question_log, question_status_summary
@@ -35,12 +35,34 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": "Internal Server Error", "error": str(exc)},
     )
 
+# --- Request Models ---
+class UserUpdateRequest(BaseModel):
+    name: str
+    email: str
+    mean_grade: str = ""
+    interests: str = ""
+    career_goals: str = ""
+
 @app.get("/user/profile")
 def get_user_profile(email: str = Query(...)):
     user = get_user_profile_by_email(email)
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
     return user
+
+@app.put("/user/profile")
+def update_user_profile_endpoint(request: UserUpdateRequest):
+    # Check if user exists
+    existing_user = get_user_profile_by_email(request.email)
+    if not existing_user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    
+    # Update user profile
+    updated_user = update_user_profile(request.email, request)
+    if not updated_user:
+        raise HTTPException(status_code=500, detail="Failed to update profile.")
+    
+    return {"message": "Profile updated successfully.", "user": updated_user}
 # Add CORS middleware to allow frontend requests
 app.add_middleware(
     CORSMiddleware,

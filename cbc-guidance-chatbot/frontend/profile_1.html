@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Profile — CBC Guide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <script src="js/theme.js" defer></script>
+</head>
+<body>
+    <div class="ix-page">
+        <header class="ix-navbar">
+            <div class="ix-container ix-nav-wrap">
+                <a href="index.html" class="ix-brand" aria-label="CBC Guide home">
+                    <span class="ix-brand-badge">CG</span>
+                    <span>CBC Guide</span>
+                </a>
+                <nav class="ix-nav-links" aria-label="Primary">
+                    <a href="#how-it-works">How It Works</a>
+                    <a href="#features">Features</a>
+                    <a href="javascript:void(0)" onclick="navigate('chat.html')" class="ix-btn ix-btn-outline ix-nav-chat">AI Chat</a>
+                    <a href="javascript:void(0)" onclick="navigate('login.html')" class="ix-btn ix-btn-outline ix-nav-login" id="ix-nav-login">Login</a>
+                    <a href="javascript:void(0)" onclick="navigate('profile.html')" class="ix-btn ix-btn-outline ix-nav-profile" id="ix-nav-profile">Profile</a>
+                </nav>
+            </div>
+        </header>
+        
+        <main class="main-content">
+            <div class="page-header">
+                <h1>Edit Profile</h1>
+                <p>Update your personal information and preferences</p>
+            </div>
+            
+            <section class="profile-form-section">
+                <form id="profile-form">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="name" class="form-label">Full Name</label>
+                                <input type="text" id="name" class="form-control profile-field" placeholder="Enter your full name">
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email Address</label>
+                                <input type="email" id="email" class="form-control profile-field" placeholder="your.email@example.com">
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="phone" class="form-label">Phone Number</label>
+                                <input type="tel" id="phone" class="form-control profile-field" placeholder="+254 712 3456">
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="bio" class="form-label">Bio</label>
+                                <textarea id="bio" class="form-control profile-field" rows="4" placeholder="Tell us about yourself"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-12">
+                        <div class="mb-3">
+                            <label for="interests" class="form-label">Interests</label>
+                                <input type="text" id="interests" class="form-control profile-field" placeholder="e.g., Technology, Engineering, Medicine">
+                            </div>
+                    </div>
+                    
+                    <div class="col-md-12">
+                        <div class="mb-3">
+                            <label for="goals" class="form-label">Career Goals</label>
+                                <input type="text" id="goals" class="form-control profile-field" placeholder="e.g., Software Engineer, Doctor, Teacher">
+                            </div>
+                    </div>
+                    
+                    <div class="d-flex gap-3 mt-4">
+                        <button type="button" id="edit-profile-btn" class="btn btn-primary" style="display: none;">Edit Profile</button>
+                        <button type="button" id="save-profile-btn" class="btn btn-success" style="display: none;">Save Changes</button>
+                        <a href="index.html" class="btn btn-secondary">Back to Home</a>
+                    </div>
+                </form>
+            </section>
+            
+            <section class="profile-info-section">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h3>Current Profile Information</h3>
+                        <div id="current-profile-display" class="profile-display">
+                            <p>Loading profile information...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <script src="js/profile.js"></script>
+</body>
+</html>

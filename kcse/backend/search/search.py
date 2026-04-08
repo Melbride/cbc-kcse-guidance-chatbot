@@ -9,6 +9,8 @@ from recommendation.conversation_context import get_conversation_context, update
 from recommendation.llm_utils import generate_general_explanation, generate_profile_guidance
 from results import GRADE_POINTS
 from user.admin_store import create_question_log
+from conversation.conversation_manager import ConversationManager
+from conversation.adaptive_responses import AdaptiveResponseGenerator
 import subprocess
 import sys
 import os
@@ -380,6 +382,86 @@ def infer_mean_grade_from_subjects(subject_entries):
     return nearest[0]
 
 
+def generate_personalized_guidance(user_name, interests, career_goals, mean_grade, user_subjects):
+    """
+    Generate highly personalized guidance based on complete user profile
+    """
+    # Analyze interests and goals to provide specific recommendations
+    interest_keywords = interests.lower().split()
+    goal_keywords = career_goals.lower().split()
+    
+    # Map interests to career fields
+    field_mapping = {
+        'technology': ['computer science', 'software development', 'data science', 'cybersecurity'],
+        'business': ['business administration', 'finance', 'marketing', 'entrepreneurship'],
+        'medical': ['medicine', 'nursing', 'pharmacy', 'public health'],
+        'teaching': ['education', 'teaching', 'educational administration'],
+        'engineering': ['engineering', 'technical fields', 'architecture']
+    }
+    
+    # Find matching fields
+    suggested_fields = []
+    for field, careers in field_mapping.items():
+        if any(keyword in interests.lower() for keyword in [field] + careers):
+            suggested_fields.extend(careers[:2])  # Top 2 careers per field
+    
+    # Generate personalized message
+    message = (
+        f"Perfect! I can see you're interested in {interests} and your goal is {career_goals}. "
+        f"That's an excellent combination with your mean grade of {mean_grade}!\n\n"
+        f"Based on your profile, here's what I recommend:\n\n"
+    )
+    
+    if suggested_fields:
+        message += f"**Career Paths to Consider:**\n"
+        for i, field in enumerate(suggested_fields[:3], 1):
+            message += f"• {field.title()} - Aligns with your interests in {interests}\n"
+    else:
+        message += f"**Career Paths to Consider:**\n"
+        message += f"• {career_goals.title()} - Direct path to your stated goal\n"
+        message += f"• Related fields in {interests} - Build on your natural interests\n"
+    
+    message += (
+        f"\n**Next Steps:**\n"
+        f"• Focus on subjects that support {career_goals}\n"
+        f"• Look for internships or projects in {interests}\n"
+        f"• Consider the specific programmes I found that match your profile\n\n"
+        f"Would you like me to show you specific programmes for any of these career paths?"
+    )
+    
+    return message
+
+def generate_general_guidance(user_name, mean_grade, user_subjects, user_query):
+    """
+    Generate general guidance when profile is incomplete
+    """
+    # Infer potential fields from subjects if available
+    subject_strengths = []
+    if user_subjects:
+        subject_map = parse_subject_map(user_subjects)
+        for subject, grade in subject_map.items():
+            if grade in ['A', 'A-', 'B+', 'B']:
+                subject_strengths.append(subject)
+    
+    message = (
+        f"Hi {user_name}! I'd be happy to help you explore career options. "
+        f"I can see you have a mean grade of {mean_grade or 'not specified yet'}"
+    )
+    
+    if subject_strengths:
+        message += f" and strengths in {', '.join(subject_strengths[:3])}"
+    
+    message += (
+        ".\n\n"
+        f"To give you the most personalized guidance, it would help to know:\n"
+        f"• What subjects or activities do you enjoy?\n"
+        f"• What kind of work do you see yourself doing in the future?\n"
+        f"• Are there any specific fields you're curious about?\n\n"
+        f"You can share this information by updating your profile, or just tell me what interests you right now!"
+    )
+    
+    return message
+
 def format_grounded_results(results, user_profile, user_query):
     profile = normalize_user_profile(user_profile)
     subject_map = parse_subject_map(profile.get("subjects", []))
@@ -529,8 +611,11 @@ def format_grounded_results(results, user_profile, user_query):
 
         lines.append(f"{index}. {source}: {row}")
 
-    closing = "If you want, ask about one of these options and I can help you interpret the stored requirements more carefully."
-    if not interests and not career_goals:
+    if interests and career_goals:
+        closing = "Since you've shared your interests and career goals, these recommendations are tailored to your profile. Would you like more details about any of these options?"
+    elif interests or career_goals:
+        closing = "I can see some of your preferences. To get more personalized recommendations, consider sharing both your interests and career goals. Would you like more details about any of these options?"
+    else:
         closing = "I do not yet have your interests or career goals, so this is still a database match list rather than a final personal recommendation. If you share what you enjoy or the career area you want, I can narrow it further."
 
     lines.extend(["", closing])
@@ -777,7 +862,7 @@ def perform_semantic_search(user_query, user_profile, conversation_id=None, hist
                 f"subjects {subjects_text}, interests {interests or 'not yet provided'}, "
                 f"and career goals {career_goals or 'not yet provided'}. "
                 "To keep the guidance accurate and grounded in the database, tell me the field, programme, or career area you want me to search. "
-                "For example, you can name a field like computer science, teaching, business, nursing, or agriculture."
+                f"For example, you can name a field like computer science, teaching, business, nursing, or agriculture."
             )
             return build_response(
                 {"results": [], "message": guidance_message},
@@ -786,27 +871,31 @@ def perform_semantic_search(user_query, user_profile, conversation_id=None, hist
                 status="guidance",
             )
 
+    conversation_manager = ConversationManager()
+    response_generator = AdaptiveResponseGenerator(conversation_manager)
+    
+    # Use adaptive response generation instead of hardcoded logic
+    try:
+        adaptive_response = response_generator.generate_response(
+            user_id=conversation_id or "default",
+            message=user_query,
+            user_profile=user_profile
+        )
+        
         return build_response(
-            {
-                "results": [],
-                "message": (
-                    f"Hi {user_name}! I'd be happy to help you explore career options. "
-                    "I do not see your full subject profile yet. Update your profile first, or tell me the field, programme, or career area you want me to search in the database."
-                ),
-            },
+            {"results": [], "message": adaptive_response},
             conversation_id,
             user_query,
             status="guidance",
         )
-
-    # Step 1: Query analysis
-    analysis = {"subject": user_query, "filters": {}, "intent": "search"}
-    try:
-        analysis = analyze_query(user_query)
-        subject = analysis.get("subject", "").strip() or user_query
-    except Exception as error:
-        print(f"Query analysis failed: {error}, using fallback")
-        subject = user_query
+    except Exception as e:
+        # Fallback to basic response if adaptive system fails
+        return build_response(
+            {"results": [], "message": "I'm here to help you explore career options! What would you like to know about?"},
+            conversation_id,
+            user_query,
+            status="guidance",
+        )
 
     # Step 2: Use semantic_search.py for multi-table retrieval
     formatted = run_database_search(subject)

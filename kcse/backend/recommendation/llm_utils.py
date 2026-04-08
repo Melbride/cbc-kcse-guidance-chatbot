@@ -234,9 +234,17 @@ MATCHED DATABASE ROWS:
 
 Start immediately with the explanation."""
 
-    response = call_gemini(prompt)
-    if not response:
-        response = call_mistral(prompt)
+    try:
+        response = client.chat.completions.create(
+            model="llama3-70b-8192",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=1000,
+            temperature=0.7
+        )
+        response = response.choices[0].message.content
+    except Exception as e:
+        print(f"Groq API error: {e}")
+        response = None
 
     if response:
         return response.strip()

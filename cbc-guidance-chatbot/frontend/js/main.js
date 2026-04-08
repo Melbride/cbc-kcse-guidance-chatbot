@@ -86,7 +86,7 @@ function showGuestLimitModal() {
 
   document.body.appendChild(modal);
 
-}
+)
 
 
 
@@ -104,7 +104,7 @@ function getStoredTheme() {
 
   }
 
-}
+)
 
 
 
@@ -275,34 +275,6 @@ function getPostLoginRedirect() {
     if (next && !next.includes('://') && !next.startsWith('//')) {
 
       return next;
-
-    }
-
-  } catch {
-
-    // Ignore malformed URLs and fall back to storage.
-
-  }
-
-
-
-  try {
-
-    const stored = localStorage.getItem('postLoginRedirect');
-
-    if (stored && !stored.includes('://') && !stored.startsWith('//')) {
-
-      return stored;
-
-    }
-
-  } catch {
-
-    // Ignore storage failures.
-
-  }
-
-
 
   return '';
 

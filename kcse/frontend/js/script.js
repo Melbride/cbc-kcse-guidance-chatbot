@@ -199,6 +199,9 @@ chatForm.addEventListener("submit", async (e) => {
   const loading = appendMessage("bot", "Thinking...");
 
   try {
+    // Refresh user data from localStorage to get latest profile updates
+    state.user = JSON.parse(localStorage.getItem("user")) || null;
+    
     const data = await apiRequest("/search", {
       query: msg,
       user_profile: JSON.stringify(state.user),
@@ -271,6 +274,9 @@ document.getElementById("view-profile").onclick = () => {
 };
 
 window.onload = () => {
+  // Refresh user data from localStorage to get latest updates
+  state.user = JSON.parse(localStorage.getItem("user")) || null;
+  
   if (!state.user) {
     window.location.href = "signin.html";
     return;

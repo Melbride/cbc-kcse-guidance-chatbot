@@ -95,6 +95,30 @@ def get_user_profile_by_email(email: str) -> Optional[dict]:
     except Exception as e:
         return None
 
+def update_user_profile(email: str, profile_data) -> Optional[dict]:
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                # Update user profile
+                cur.execute("""
+                    UPDATE user_profiles 
+                    SET name = %s, mean_grade = %s, interests = %s, career_goals = %s
+                    WHERE email = %s
+                """, (profile_data.name, profile_data.mean_grade, profile_data.interests, profile_data.career_goals, email))
+                conn.commit()
+                
+                # Return updated user data
+                cur.execute("SELECT user_id, name, email, mean_grade, interests, career_goals, extra_data FROM user_profiles WHERE email = %s", (email,))
+                row = cur.fetchone()
+                if row:
+                    return {
+                        "user_id": row[0], "name": row[1], "email": row[2], "mean_grade": row[3],
+                        "interests": row[4], "career_goals": row[5], "extra_data": row[6]
+                    }
+                return None
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not update user profile: {e}")
+
 def delete_user_profile(user_id: str):
     try:
         with get_db_connection() as conn:
