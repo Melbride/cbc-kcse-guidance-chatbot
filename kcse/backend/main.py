@@ -22,6 +22,11 @@ app = FastAPI()
 ADMIN_TOKEN = "kcse_admin_token_2024"
 ensure_user_profiles_schema()
 
+# Health check endpoint
+@app.get("/")
+def health_check():
+    return {"status": "healthy", "service": "KCSE Guidance Chatbot", "version": "1.0"}
+
 # Add a global exception handler for better error logging
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
