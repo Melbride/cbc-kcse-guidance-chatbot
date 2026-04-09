@@ -1,5 +1,4 @@
-const API_BASE = "http://localhost:8000";
-
+const API_BASE = "https://kcse-backend.onrender.com";
 const state = {
   user: JSON.parse(localStorage.getItem("user")) || null,
   chats: JSON.parse(localStorage.getItem("chats")) || [],
