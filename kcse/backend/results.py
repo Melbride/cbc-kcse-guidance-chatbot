@@ -39,7 +39,7 @@ def get_db_connection():
     if database_url:
         return psycopg2.connect(database_url)
     return psycopg2.connect(
-        dbname=os.getenv("DB_NAME", "kcse"),
+        dbname=os.getenv("DB_NAME", "kcse-Guidance"),
         user=os.getenv("DB_USER", "postgres"),
         password=os.getenv("DB_PASSWORD", "postgres"),
         host=os.getenv("DB_HOST", "localhost"),
