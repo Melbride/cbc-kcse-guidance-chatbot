@@ -213,7 +213,7 @@ signupForm.addEventListener("submit", async function(e){
     };
 
     try {
-        const res = await fetch("https://kcse-backend.onrender.com/signup", {
+        const res = await fetch(`${API_BASE}/signup`, {
 
             method: "POST",
             headers: { "Content-Type": "application/json" },
