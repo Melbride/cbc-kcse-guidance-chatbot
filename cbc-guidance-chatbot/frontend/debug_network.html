@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Debug - CBC Chatbot</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Network Debug Tool - CBC Chatbot</h1>
+    
+    <div id="results"></div>
+    
+    <button onclick="runTests()">Run Network Tests</button>
+    
+    <script>
+        // Dynamic API_BASE detection (same as main.js)
+        const API_BASE = (() => {
+            const hostname = window.location.hostname;
+            
+            // Development environments
+            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                return 'http://127.0.0.1:8000';
+            }
+            
+            // Production environments
+            if (hostname.includes('netlify.app') || hostname.includes('netlify.com')) {
+                // Frontend on Netlify, backend on Render
+                return 'https://cbc-kcse-guidance-chatbot.onrender.com';
+            }
+            
+            // If frontend is also on Render (different service)
+            if (hostname.includes('onrender.com')) {
+                // Check if this is a frontend service
+                if (hostname.includes('frontend') || hostname.includes('-web')) {
+                    return 'https://cbc-kcse-guidance-chatbot.onrender.com';
+                }
+                // Otherwise assume same origin
+                return '';
+            }
+            
+            // Default: same origin
+            return '';
+        })();
+        
+        function addResult(title, status, message, details = null) {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-result ${status}`;
+            
+            let content = `<h3>${title}</h3><p>${message}</p>`;
+            if (details) {
+                content += `<pre>${JSON.stringify(details, null, 2)}</pre>`;
+            }
+            
+            div.innerHTML = content;
+            results.appendChild(div);
+        }
+        
+        async function testEndpoint(endpoint, method = 'GET', data = null) {
+            const url = `${API_BASE}${endpoint}`;
+            
+            try {
+                const options = {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                };
+                
+                if (data && method === 'POST') {
+                    options.body = JSON.stringify(data);
+                }
+                
+                const response = await fetch(url, options);
+                
+                return {
+                    status: 'success',
+                    httpStatus: response.status,
+                    url: url,
+                    headers: Object.fromEntries(response.headers.entries()),
+                    data: await response.json()
+                };
+            } catch (error) {
+                return {
+                    status: 'error',
+                    error: error.message,
+                    url: url
+                };
+            }
+        }
+        
+        async function runTests() {
+            document.getElementById('results').innerHTML = '';
+            
+            addResult('Environment Info', 'info', 
+                `Hostname: ${window.location.hostname}<br>` +
+                `API_BASE: ${API_BASE}<br>` +
+                `Full URL: ${window.location.href}`
+            );
+            
+            // Test 1: Health Check
+            const healthResult = await testEndpoint('/');
+            if (healthResult.status === 'success') {
+                addResult('Health Check', 'success', 
+                    `✅ Backend accessible (HTTP ${healthResult.httpStatus})`,
+                    healthResult.data
+                );
+            } else {
+                addResult('Health Check', 'error', 
+                    `❌ Cannot connect to backend: ${healthResult.error}`,
+                    healthResult
+                );
+            }
+            
+            // Test 2: Query Endpoint
+            const queryResult = await testEndpoint('/query/', 'POST', {
+                question: "What is CBC?",
+                user_id: "debug_test"
+            });
+            
+            if (queryResult.status === 'success') {
+                addResult('Query Endpoint', 'success', 
+                    `✅ Query endpoint working (HTTP ${queryResult.httpStatus})`,
+                    { answer_length: queryResult.data.answer?.length || 0 }
+                );
+            } else {
+                addResult('Query Endpoint', 'error', 
+                    `❌ Query endpoint failed: ${queryResult.error}`,
+                    queryResult
+                );
+            }
+            
+            // Test 3: CORS Check
+            try {
+                const response = await fetch(`${API_BASE}/`, {
+                    method: 'OPTIONS'
+                });
+                addResult('CORS Check', 'success', 
+                    `✅ CORS headers present (HTTP ${response.status})`,
+                    { 
+                        'Access-Control-Allow-Origin': response.headers.get('Access-Control-Allow-Origin'),
+                        'Access-Control-Allow-Methods': response.headers.get('Access-Control-Allow-Methods')
+                    }
+                );
+            } catch (error) {
+                addResult('CORS Check', 'error', 
+                    `❌ CORS check failed: ${error.message}`
+                );
+            }
+        }
+        
+        // Auto-run tests when page loads
+        window.onload = runTests;
+    </script>
+</body>
+</html>

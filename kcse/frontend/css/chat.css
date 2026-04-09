@@ -1,3 +1,30 @@
+/* Remove scrollbar gutter space */
+.chat-page .chat-window {
+  scrollbar-gutter: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Make scrollbar overlay instead of taking space */
+.chat-page .chat-window::-webkit-scrollbar {
+  width: 4px;
+}
+
+/* Fill the full remaining width */
+.chat-layout {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Remove any right margin/padding on main */
+.chat-page .main,
+.chat-layout {
+  margin-right: 0 !important;
+  padding-right: 0 !important;
+}
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -50,7 +77,6 @@ body.theme-dark {
 
 html {
   scroll-behavior: smooth;
-  scrollbar-gutter: stable;
 }
 
 body {
@@ -101,7 +127,6 @@ body {
   overflow-x: hidden;
   flex-shrink: 0;
   border-right: 1px solid rgba(255,255,255,0.06);
-  scrollbar-gutter: stable;
 }
 
 .sidebar-top {
@@ -319,7 +344,6 @@ body {
   min-height: 0;
   padding-bottom: 0 !important;
   overflow-y: auto;
-  scrollbar-gutter: stable;
 }
 
 .sidebar-section-title {
@@ -502,7 +526,6 @@ body {
   overflow-x: hidden;
   overscroll-behavior: contain;
   min-height: 0;
-  scrollbar-gutter: stable;
   -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;

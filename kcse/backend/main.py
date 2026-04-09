@@ -425,6 +425,7 @@ class SearchRequest(BaseModel):
     user_profile: str = ""
     conversation_id: str = ""
     history: list = []
+    previous_results: list = []  # add this
 
 @app.post("/search")
 def semantic_search(request: SearchRequest):
@@ -433,7 +434,8 @@ def semantic_search(request: SearchRequest):
             request.query,
             request.user_profile,
             conversation_id=request.conversation_id,
-            history=request.history
+            history=request.history,
+            previous_results=request.previous_results
         )
     except Exception as exc:
         if request.conversation_id and request.query:

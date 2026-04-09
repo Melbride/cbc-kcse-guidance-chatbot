@@ -8,8 +8,8 @@ const state = {
 
 const STARTER_PROMPTS = [
   "What can I study with my grades?",
-  "computer science",
-  "what are the requirements?",
+  "Tell me about computer science courses",
+  "What are the requirements for engineering?",
   "I want career guidance based on my profile"
 ];
 
@@ -58,6 +58,12 @@ async function apiRequest(endpoint, body) {
 }
 
 function appendMessage(role, text) {
+  // Clear welcome message on first real message
+  const welcomeSection = chatWindow.querySelector('.chat-empty');
+  if (welcomeSection) {
+    welcomeSection.remove();
+  }
+
   const msg = document.createElement("div");
   msg.className = `chat-msg-row ${role}`;
 
@@ -202,17 +208,32 @@ chatForm.addEventListener("submit", async (e) => {
     // Refresh user data from localStorage to get latest profile updates
     state.user = JSON.parse(localStorage.getItem("user")) || null;
     
+    const history = chat.messages.map(m => ({
+      role: m.role === "bot" ? "assistant" : m.role,
+      content: m.text || m.content
+    }));
+
+    // Find the last assistant message that had DB results
+    const lastResultsMessage = [...chat.messages].reverse()
+        .find(m => m.role === "bot" && m.db_results?.length > 0);
+
     const data = await apiRequest("/search", {
       query: msg,
       user_profile: JSON.stringify(state.user),
       conversation_id: chat.id,
-      history: chat.messages
+      history: history,
+      previous_results: lastResultsMessage?.db_results || []
     });
 
     loading.remove();
 
     const reply = formatSearchReply(data);
-    chat.messages.push({ role: "bot", text: reply });
+    // When you get a response, store both message and results
+    chat.messages.push({ 
+        role: "bot", 
+        text: reply,
+        db_results: data.results  // store the DB results too
+    });
 
     appendMessage("bot", reply);
     saveState();
@@ -265,7 +286,9 @@ sidebarSectionTitle.onclick = () => {
 };
 
 document.getElementById("logout").onclick = () => {
-  localStorage.clear();
+  // Only clear authentication data, keep chat history
+  localStorage.removeItem("user");
+  localStorage.removeItem("currentChatId");
   window.location.href = "signin.html";
 };
 

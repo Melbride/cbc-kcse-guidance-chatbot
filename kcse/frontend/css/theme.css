@@ -43,7 +43,15 @@ body.theme-dark {
 
 html {
   scroll-behavior: smooth;
+  background: #fbfdff;  /* matches light mode page start */
+  overscroll-behavior: none;
 }
+
+body.theme-dark ~ html,
+body.theme-dark {
+  background: #0b1422;  /* matches dark mode page end */
+}
+
 
 body,
 .landing-body,
@@ -52,6 +60,7 @@ body,
 .chat-page {
   font-family: 'Inter', sans-serif;
   color: var(--kcse-text) !important;
+  overscroll-behavior: none;
   background:
     radial-gradient(circle at top left, rgba(30, 58, 138, 0.08), transparent 26%),
     radial-gradient(circle at top right, rgba(15, 118, 110, 0.08), transparent 22%),
@@ -440,7 +449,7 @@ body.theme-dark .chat-header {
   background: linear-gradient(180deg, var(--kcse-sidebar-bg) 0%, #102b57 100%) !important;
   border-right: 1px solid rgba(219, 231, 255, 0.1) !important;
   box-shadow: none !important;
-  overflow: visible !important;
+  overflow: hidden !important;
 }
 
 body.theme-dark .chat-page .sidebar {

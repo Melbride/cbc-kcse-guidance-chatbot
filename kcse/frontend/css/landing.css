@@ -19,6 +19,22 @@
   --kcse-radius-lg: 24px;
 }
 
+html {
+    background: var(--kcse-bg);
+    overscroll-behavior: none;
+}
+
+body.theme-dark html,
+body.theme-dark {
+    background: #0b1422;
+    overscroll-behavior: none;
+}
+
+.landing-body {
+    overscroll-behavior: none;
+    min-height: 100vh;
+}
+
 body.theme-dark {
   --kcse-primary: #4f7cff;
   --kcse-secondary: #2cb37f;
@@ -131,7 +147,7 @@ body.theme-dark .landing-navbar-brand {
 .landing-nav-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 20px;
   white-space: nowrap;
   margin-left: auto;
 }

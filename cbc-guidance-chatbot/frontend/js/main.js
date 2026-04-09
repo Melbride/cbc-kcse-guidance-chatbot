@@ -1,6 +1,34 @@
 // Backend-Connected Functions for CBC Chatbot
 
-const API_BASE = 'http://127.0.0.1:8001';const THEME_KEY = 'uiTheme';
+// Dynamic API_BASE for development vs production
+const API_BASE = (() => {
+    const hostname = window.location.hostname;
+    
+    // Development environments
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return 'http://127.0.0.1:8000';
+    }
+    
+    // Production environments
+    if (hostname.includes('netlify.app') || hostname.includes('netlify.com')) {
+        // Frontend on Netlify, backend on Render
+        return 'https://cbc-kcse-guidance-chatbot.onrender.com';
+    }
+    
+    // If frontend is also on Render (different service)
+    if (hostname.includes('onrender.com')) {
+        // Check if this is a frontend service
+        if (hostname.includes('frontend') || hostname.includes('-web')) {
+            return 'https://cbc-kcse-guidance-chatbot.onrender.com';
+        }
+        // Otherwise assume same origin
+        return '';
+    }
+    
+    // Default: same origin (frontend and backend served from same domain)
+    return '';
+})();
+const THEME_KEY = 'uiTheme';
 
 
 
@@ -2398,7 +2426,7 @@ async function displaySchools() {
 
         <h5>Unable to load school data</h5>
 
-        <p>Please ensure the backend server is running on port 8001.</p>
+        <p>Please ensure the backend server is running and accessible.</p>
 
         <p>If the problem persists, contact support.</p>
 
