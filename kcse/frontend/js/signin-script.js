@@ -1,5 +1,4 @@
-const API_BASE = "http://localhost:8000";
-
+const API_BASE = "https://kcse-backend.onrender.com";
 const GRADE_POINTS = {
   "A": 12,
   "A-": 11,
