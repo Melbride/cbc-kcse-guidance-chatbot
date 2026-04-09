@@ -19,6 +19,13 @@ from career import router as career_router
 from recommendation.conversation_context import list_recent_questions, list_top_questions
 logging.basicConfig(level=logging.INFO, force=True)
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 ADMIN_TOKEN = "kcse_admin_token_2024"
 ensure_user_profiles_schema()
 
@@ -69,13 +76,13 @@ def update_user_profile_endpoint(request: UserUpdateRequest):
     
     return {"message": "Profile updated successfully.", "user": updated_user}
 # Add CORS middleware to allow frontend requests
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Or specify your frontend URL instead of "*"
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["*"],  # Or specify your frontend URL instead of "*"
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
 app.include_router(career_router)
 
 # --- User Signup ---
@@ -452,13 +459,13 @@ def semantic_search(request: SearchRequest):
         raise
 
 # Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["*"],
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
 
 # Server startup
 if __name__ == "__main__":
