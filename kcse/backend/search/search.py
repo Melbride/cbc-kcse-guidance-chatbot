@@ -1,15 +1,14 @@
-# search.py  (clean rewrite)
+# search.py  (improved)
 """
 Search and recommendation logic for the KCSE guidance chatbot.
 
 Flow per request:
   1. Rewrite the user's message into a DB search term (using conversation history)
   2. Run the DB search with that term
-  3. If no results, retry with a broader 1-2 word fallback term
-  4. Pass [system prompt + user profile + full history + DB results] to the LLM
-  5. Return the LLM response
-
-Nothing else. No keyword trees. No hardcoded templates.
+  3. Deduplicate results by (institution, programme)
+  4. Filter results by student's mean grade
+  5. Pass [system prompt + user profile + full history + DB results] to the LLM
+  6. Return the LLM response
 """
 
 import json
@@ -26,7 +25,51 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # ---------------------------------------------------------------------------
-# Helpers kept from the original (DB search + profile normalisation)
+# Grade filtering helpers
+# ---------------------------------------------------------------------------
+
+GRADE_ORDER = ["A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "D-", "E"]
+
+def grade_to_int(grade: str) -> int:
+    """Convert letter grade to integer rank. Lower = better."""
+    grade = str(grade).strip().upper()
+    try:
+        return GRADE_ORDER.index(grade)
+    except ValueError:
+        return 999  # unknown grade → don't filter out
+
+def student_qualifies(student_grade: str, cutoff: str) -> bool:
+    """
+    Return True if student's mean grade meets or exceeds the cutoff.
+    Handles letter grades (B-, C+) and numeric points (38.64, 28.706).
+    If cutoff is unknown/unparseable, always return True (don't filter).
+    """
+    if not cutoff or str(cutoff).strip() in ("", "None", "N/A", "Not Available"):
+        return True
+
+    cutoff = str(cutoff).strip()
+
+    # Try numeric cutoff (KUCCPS cluster points)
+    try:
+        cutoff_points = float(cutoff)
+        # Convert student grade to approximate cluster points
+        student_points = GRADE_POINTS.get(student_grade.strip().upper(), 0)
+        # Cluster points scale differently — rough map: A=12pts≈48, B-=8pts≈32
+        # Just compare proportionally: student_points * 4 vs cutoff_points
+        return (student_points * 4) >= cutoff_points
+    except ValueError:
+        pass
+
+    # Try letter grade cutoff
+    student_rank = grade_to_int(student_grade)
+    cutoff_rank = grade_to_int(cutoff)
+    if cutoff_rank == 999:
+        return True  # can't parse cutoff → show it anyway
+    return student_rank <= cutoff_rank  # lower index = better grade
+
+
+# ---------------------------------------------------------------------------
+# Profile normalisation
 # ---------------------------------------------------------------------------
 
 def normalize_user_profile(user_profile):
@@ -43,11 +86,15 @@ def normalize_user_profile(user_profile):
     normalized = dict(profile) if isinstance(profile, dict) else {}
     normalized["extra_data"] = extra_data
     normalized["subjects"] = subjects
-    normalized["mean_grade"]    = normalized.get("mean_grade", "")    or ""
-    normalized["interests"]     = normalized.get("interests", "")     or ""
-    normalized["career_goals"]  = normalized.get("career_goals", "") or ""
+    normalized["mean_grade"]   = normalized.get("mean_grade", "")   or ""
+    normalized["interests"]    = normalized.get("interests", "")    or ""
+    normalized["career_goals"] = normalized.get("career_goals", "") or ""
     return normalized
 
+
+# ---------------------------------------------------------------------------
+# DB search
+# ---------------------------------------------------------------------------
 
 def run_database_search(search_term: str):
     """Run semantic_search.py as a subprocess and return structured rows."""
@@ -61,16 +108,15 @@ def run_database_search(search_term: str):
             capture_output=True, timeout=45,
             encoding='utf-8', errors='replace'
         )
-        output = result.stdout
         rows = []
-        for line in output.splitlines():
+        for line in result.stdout.splitlines():
             line = line.strip()
             if not line.startswith("["):
                 continue
             try:
                 label, rest = line.split("]", 1)
                 label = label.strip("[] ")
-                row = eval(rest.strip())          # same as original
+                row = eval(rest.strip())
                 rows.append({"source": label, "data": row})
             except Exception:
                 continue
@@ -79,109 +125,139 @@ def run_database_search(search_term: str):
         return []
 
 
+def deduplicate_results(rows: list) -> list:
+    """
+    Remove duplicate rows that have the same (source, institution, programme).
+    This fixes the issue where Kabarak University BSc Nursing appeared 10 times.
+    """
+    seen = set()
+    unique = []
+    for item in rows:
+        source = item.get("source", "")
+        data = item.get("data", [])
+
+        if source == "Degree" and len(data) >= 3:
+            key = (source, str(data[1]).strip().lower(), str(data[2]).strip().lower())
+        elif source == "Diploma" and len(data) >= 3:
+            key = (source, str(data[1]).strip().lower(), str(data[2]).strip().lower())
+        elif source == "Artisan" and len(data) >= 3:
+            key = (source, str(data[1]).strip().lower(), str(data[2]).strip().lower())
+        elif source == "SkillBuilding" and len(data) >= 2:
+            key = (source, str(data[0]).strip().lower(), str(data[1]).strip().lower())
+        else:
+            key = (source, str(data))
+
+        if key not in seen:
+            seen.add(key)
+            unique.append(item)
+    return unique
+
+
+def filter_by_grade(rows: list, student_grade: str) -> list:
+    """
+    For Degree results, filter out programmes the student doesn't qualify for.
+    Diploma and Artisan are kept as-is since cutoffs vary widely.
+    SkillBuilding has no grade requirement.
+    """
+    if not student_grade:
+        return rows  # no grade info → show everything
+
+    filtered = []
+    for item in rows:
+        source = item.get("source", "")
+        data = item.get("data", [])
+
+        if source == "Degree" and len(data) >= 4:
+            cutoff = str(data[3]).strip()
+            if student_qualifies(student_grade, cutoff):
+                filtered.append(item)
+        else:
+            filtered.append(item)  # Diploma, Artisan, SkillBuilding always included
+
+    return filtered
+
+
+# ---------------------------------------------------------------------------
+# Format DB results for the LLM prompt
+# ---------------------------------------------------------------------------
+
 def format_db_rows_for_prompt(rows: list) -> str:
     if not rows:
         return "No matching records found in the database."
-    
-    # Group by source for better organization
+
     by_source = {}
     for item in rows:
         source = item.get("source", "")
-        if source not in by_source:
-            by_source[source] = []
-        by_source[source].append(item)
-    
+        by_source.setdefault(source, []).append(item)
+
     lines = []
-    
-    # Format SkillBuilding results with clean numbered list
-    if "SkillBuilding" in by_source:
-        lines.append("\n=== Online Courses & Bootcamps ===")
-        skillbuilding_items = by_source["SkillBuilding"][:50]  # Show top 50
-        for i, item in enumerate(skillbuilding_items, 1):
-            data = item.get("data", [])
-            if len(data) >= 6:
-                company, programme, pathway, duration, cost, link = data[:6]
-                # Clean up the formatting
-                company = str(company).strip()
-                programme = str(programme).strip()
-                pathway = str(pathway).strip()
-                duration = str(duration).strip()
-                cost = str(cost).strip()
-                link = str(link).strip()
-                
-                # Format as clean numbered list with better spacing
-                lines.append(f"{i}. {company}")
-                lines.append(f"   Course: {programme}")
-                lines.append(f"   Pathway: {pathway}")
-                lines.append(f"   Duration: {duration} | Cost: {cost}")
-                lines.append(f"   Link: {link}")
-                lines.append("")  # Add spacing between items
-        lines.append("")  # Add spacing after section
-    
-    # Format Degree results
+
     if "Degree" in by_source:
         lines.append("=== Degree Programmes ===")
-        degree_items = by_source["Degree"][:15]  # Show top 15
-        for i, item in enumerate(degree_items, 1):
+        for i, item in enumerate(by_source["Degree"][:20], 1):
             data = item.get("data", [])
             if len(data) >= 4:
-                prog_code, institution, programme, cutoff = data[:4]
-                # Clean up the formatting
-                institution = str(institution).strip()
-                programme = str(programme).strip()
-                cutoff = str(cutoff).strip()
-                
-                lines.append(f"{i}. {institution}")
-                lines.append(f"   Programme: {programme}")
-                lines.append(f"   Cutoff: {cutoff}")
-                lines.append("")  # Add spacing between items
-        lines.append("")  # Add spacing after section
-    
-    # Format Diploma results
+                institution = str(data[1]).strip()
+                programme   = str(data[2]).strip()
+                cutoff      = str(data[3]).strip()
+                lines.append(f"{i}. {institution} — {programme} (Cutoff: {cutoff})")
+        lines.append("")
+
     if "Diploma" in by_source:
         lines.append("=== Diploma Programmes ===")
-        diploma_items = by_source["Diploma"][:10]  # Show top 10
-        for i, item in enumerate(diploma_items, 1):
+        for i, item in enumerate(by_source["Diploma"][:15], 1):
             data = item.get("data", [])
             if len(data) >= 3:
-                prog_code, institution, programme = data[:3]
-                institution = str(institution).strip()
-                programme = str(programme).strip()
-                
-                lines.append(f"{i}. {institution} - {programme}")
-        lines.append("")  # Add spacing after section
-    
-    # Format Artisan results
+                institution = str(data[1]).strip()
+                programme   = str(data[2]).strip()
+                mean_grade  = str(data[3]).strip() if len(data) > 3 else ""
+                grade_str   = f" (Min grade: {mean_grade})" if mean_grade and mean_grade not in ("None","") else ""
+                lines.append(f"{i}. {institution} — {programme}{grade_str}")
+        lines.append("")
+
     if "Artisan" in by_source:
         lines.append("=== Artisan & Certificate Programmes ===")
-        artisan_items = by_source["Artisan"][:10]  # Show top 10
-        for i, item in enumerate(artisan_items, 1):
+        for i, item in enumerate(by_source["Artisan"][:10], 1):
             data = item.get("data", [])
             if len(data) >= 3:
-                level, institution, programme = data[:3]
-                institution = str(institution).strip()
-                programme = str(programme).strip()
-                
-                lines.append(f"{i}. {institution} - {programme} ({level})")
-    
-    # If no recognized sources, fallback to original format
+                level       = str(data[0]).strip()
+                institution = str(data[1]).strip()
+                programme   = str(data[2]).strip()
+                lines.append(f"{i}. {institution} — {programme} ({level})")
+        lines.append("")
+
+    if "SkillBuilding" in by_source:
+        lines.append("=== Online Courses & Bootcamps ===")
+        for i, item in enumerate(by_source["SkillBuilding"][:15], 1):
+            data = item.get("data", [])
+            if len(data) >= 6:
+                company   = str(data[0]).strip()
+                programme = str(data[1]).strip()
+                duration  = str(data[3]).strip()
+                cost      = str(data[4]).strip()
+                link      = str(data[5]).strip()
+                lines.append(f"{i}. {company} — {programme}")
+                lines.append(f"   Duration: {duration} | Cost: {cost}")
+                lines.append(f"   Link: {link}")
+        lines.append("")
+
+    # Fallback
     if not lines:
         lines.append("=== Available Programmes ===")
         for i, item in enumerate(rows[:20], 1):
             source = item.get("source", "")
-            data = item.get("data", [])
-            parts = [str(x) for x in data if x not in (None, "")]
+            data   = item.get("data", [])
+            parts  = [str(x) for x in data if x not in (None, "")]
             lines.append(f"{i}. [{source}] " + " | ".join(parts))
-    
+
     return "\n".join(lines)
 
 
 def format_history_for_prompt(history: list) -> str:
-    """Turn the history list sent by the frontend into a readable block."""
     if not history:
         return ""
     lines = []
-    for msg in history[-10:]:           # last 10 turns is plenty
+    for msg in history[-10:]:
         role = msg.get("role", "user")
         text = msg.get("text") or msg.get("content") or ""
         if text:
@@ -190,7 +266,7 @@ def format_history_for_prompt(history: list) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Step 1 – rewrite the user's message into a clean DB search term
+# Step 1 — rewrite user message → DB search term
 # ---------------------------------------------------------------------------
 
 REWRITE_SYSTEM = """You extract a short database search term from a student's question.
@@ -200,28 +276,22 @@ Rules:
 - Use the conversation history to resolve vague references like "the second one" or "that course".
 - If the question is a greeting or small talk, output: SKIP
 - If the question is about career guidance with no specific field mentioned, output: SKIP
+- If the student asks for "another course" or "something different", pick a NEW field based on their profile interests or career goals — do NOT repeat the last search term.
+- If the student mentions a specific institution (e.g. "Meru University"), include it in the term.
 
-For skill building and online learning, map the intent to what exists in the database:
-- Any question about online learning, short courses, self-paced courses, learning from home,
-  digital skills, coding bootcamps, or skill building → output: IT Coding
-- Any question about a specific platform by name (Udacity, Coursera, ALX, edX, Ajira, 
-  FreeCodeCamp, Codecademy, LinkedIn Learning, Khan Academy, Udemy, Skillshare, 
-  Pluralsight, MIT, Harvard Online) → output just that company name exactly as written above
-- Any question about free courses → output: free IT Coding
-- Any question about paid courses → output: paid IT Coding
-- Any question about languages or general skills → output: Languages
+For skill building:
+- Online learning / short courses / bootcamps / coding / digital skills → output: IT Coding
+- A specific platform by name → output that company name exactly
+- Free courses → output: free IT Coding
 """
 
 def rewrite_query(user_message: str, history: list) -> str:
-    """Ask the LLM to turn the user message into a DB search term."""
     history_text = format_history_for_prompt(history)
     user_content = (
         f"Conversation so far:\n{history_text}\n\n"
-        f"Latest message: {user_message}\n\n"
-        "Search term:"
-    ) if history_text else (
         f"Latest message: {user_message}\n\nSearch term:"
-    )
+    ) if history_text else f"Latest message: {user_message}\n\nSearch term:"
+
     try:
         resp = client.chat.completions.create(
             model="llama-3.1-8b-instant",
@@ -235,52 +305,38 @@ def rewrite_query(user_message: str, history: list) -> str:
         term = resp.choices[0].message.content.strip()
         return "" if term.upper() == "SKIP" else term
     except Exception:
-        return ""          # fall through to LLM-only response
+        return ""
 
 
 # ---------------------------------------------------------------------------
-# Step 2 – build the main LLM prompt and call Groq
+# Step 2 — build LLM prompt and call Groq
 # ---------------------------------------------------------------------------
 
 ADVISOR_SYSTEM = """You are a warm, knowledgeable KCSE career guidance advisor for Kenyan students.
 
-Your job:
-- Help students figure out what to study after high school (universities, diplomas, TVETs, short courses).
-- Use ONLY the database results provided to make recommendations. Never invent programmes, grades, or institutions.
-- NEVER invent or assume programme names, institution names, grades, requirements, fees, or links that are not in the database results.
-- When the database returns multiple results, list ALL of them clearly.
-  Do not pick just one or two and ignore the rest.
-- For each result show the institution name and programme name on its own line.
-- If there are more than 10 results, group them: first Degree programmes, then Diploma, then Artisan, then Skill/Short courses.
-- Never say "I only found one" if the database returned more than one result.
-- When a student asks what programmes an institution offers, list ALL of them 
-  from the database results grouped by type: first Degrees, then Diplomas, 
-  then Artisan/Craft certificates. Show every single one — do not summarize 
-  or pick favourites. The student needs the full picture.
-- Format each programme on its own line like: "• Programme Name (cutoff/grade)"
-- If the database returned nothing, say so honestly and ask a clarifying question.
-- Keep conversation flowing naturally. If the student changes topic, follow them.
-- Ask one focused follow-up question at the end of each response to keep guiding them.
-- If the database results include short courses with links, always show the link so the student can visit directly.
-- Format links cleanly: "You can visit their website here: [link]"
-- When starting a fresh conversation, greet the user warmly but briefly. 
-  Do not summarize their entire profile back to them. Just say hello and ask 
-  what they need help with today.  
-- If the database returned nothing, say honestly: "I don't have that specific information in my database right now." Then suggest the student to visit the institution's website for more information. Do NOT name any institution or course that isn't in the results.
+YOUR CORE RULES:
+1. Use ONLY the database results provided. Never invent programmes, institutions, grades, or links.
+2. If the database returned results, list ALL of them — do not pick favourites or skip any.
+3. Never show the same institution+programme more than once.
+4. If the database returned nothing for a specific request, say so honestly. Do not guess.
+5. When listing programmes, always show: Institution name, Programme name, and Cutoff/grade if available.
+6. Only recommend programmes the student actually qualifies for based on their mean grade.
+7. If the student doesn't qualify for any results, say so kindly and suggest alternatives (diploma, TVET).
 
-
-Style:
-- Talk directly to the student using "you" and "your".
-- Warm and conversational, like a counsellor in person.
-- No heavy markdown, no bold headers, no bullet-point walls.
-- Keep it concise. Most replies should be 3-6 sentences plus a follow-up question.
-- Never guess gender. Never invent interests or goals the student hasn't stated.
-- If interests or goals are missing from the profile, mention that naturally and use what you do have.
-- Keep greetings short. One sentence maximum. Then ask one question.
+CONVERSATION STYLE:
+- Warm and direct, like a school counsellor talking face to face.
+- No heavy markdown. No bold headers. No bullet-point walls.
+- Most replies: 2-4 sentences of guidance + the list of programmes + ONE follow-up question.
+- Do NOT end every reply with "Do you think you might be interested in...?" — vary your follow-up questions.
+- Good follow-up examples: "Would you like to explore diploma options too?", "Do you have a location preference?", "Want me to compare those options for you?"
+- Keep greetings to one sentence. Then ask what they need.
+- Never repeat the student's profile back to them.
+- If the student asks for your opinion or recommendation, give a clear one based on their grade and interests — don't dodge it.
+- If the student says "I want another course" or "something else", suggest a genuinely different field. Don't repeat nursing if you just talked about nursing.
+- Talk directly using "you" and "your". Never guess gender.
 """
 
 def call_llm(user_message: str, user_profile: dict, history: list, db_results: list) -> str:
-    """Build the full prompt and get a response from Groq."""
     profile = normalize_user_profile(user_profile)
     subjects_text = ", ".join(profile["subjects"]) if profile["subjects"] else "not provided"
 
@@ -294,30 +350,20 @@ def call_llm(user_message: str, user_profile: dict, history: list, db_results: l
     )
 
     db_block = (
-        f"Database results:\n{format_db_rows_for_prompt(db_results)}"
+        f"Database results (already deduplicated and grade-filtered):\n{format_db_rows_for_prompt(db_results)}"
         if db_results else
         "Database results: none found for this query."
     )
 
-    history_block = format_history_for_prompt(history)
-
-    # Build messages array — history first, then current turn
     messages = [{"role": "system", "content": ADVISOR_SYSTEM}]
+    messages.append({"role": "system", "content": f"{profile_block}\n\n{db_block}"})
 
-    # Inject profile + DB results as a system-level context message
-    messages.append({
-        "role": "system",
-        "content": f"{profile_block}\n\n{db_block}"
-    })
-
-    # Replay recent history so the LLM has full conversational context
     for msg in (history or [])[-10:]:
         role = msg.get("role", "user")
         text = msg.get("text") or msg.get("content") or ""
         if role in ("user", "assistant") and text:
             messages.append({"role": role, "content": text})
 
-    # Current user message
     messages.append({"role": "user", "content": user_message})
 
     try:
@@ -330,24 +376,21 @@ def call_llm(user_message: str, user_profile: dict, history: list, db_results: l
         return resp.choices[0].message.content.strip()
     except Exception as e:
         print(f"LLM error: {e}")
-        return (
-            "I'm having a little trouble right now. "
-            "Could you rephrase your question and I'll do my best to help?"
-        )
+        return "I'm having a little trouble right now. Could you rephrase your question and I'll do my best to help?"
 
 
 # ---------------------------------------------------------------------------
-# Logging helpers (unchanged from original)
+# Logging helpers
 # ---------------------------------------------------------------------------
 
 def detect_topic(text):
     text_lower = (text or "").lower()
     topic_map = {
-        "Engineering":     ["engineering", "mechanical", "electrical", "civil"],
-        "Computer Science":["computer", "software", "ict", "it", "programming"],
-        "Medicine":        ["medicine", "nursing", "clinical", "pharmacy"],
-        "Business":        ["business", "commerce", "accounting", "finance"],
-        "Teaching":        ["teaching", "education", "teacher"],
+        "Engineering":      ["engineering", "mechanical", "electrical", "civil"],
+        "Computer Science": ["computer", "software", "ict", "it", "programming", "data science"],
+        "Medicine":         ["medicine", "nursing", "clinical", "pharmacy"],
+        "Business":         ["business", "commerce", "accounting", "finance"],
+        "Teaching":         ["teaching", "education", "teacher"],
     }
     for topic, keywords in topic_map.items():
         if any(k in text_lower for k in keywords):
@@ -371,11 +414,10 @@ def log_interaction(conversation_id, user_query, response_text, status):
 
 
 # ---------------------------------------------------------------------------
-# Main entry point (called from main.py)
+# Main entry point
 # ---------------------------------------------------------------------------
 
 def perform_semantic_search(user_query, user_profile, conversation_id=None, history=None, previous_results=None):
-    # --- normalise inputs ---
     if isinstance(user_profile, str):
         try:
             user_profile = json.loads(user_profile)
@@ -384,22 +426,31 @@ def perform_semantic_search(user_query, user_profile, conversation_id=None, hist
     user_profile = normalize_user_profile(user_profile)
     history = history or []
 
-    # --- Step 1: rewrite query → DB search term ---
+    # Step 1: rewrite query → search term
     search_term = rewrite_query(user_query, history)
     print(f"DEBUG search_term: '{search_term}'")
 
-    # --- Step 2: search the database (only if we have a term) ---
-    # If no search term (SKIP) but we have previous results, use those
+    # Step 2: search DB
     if not search_term and previous_results:
         db_results = previous_results
     else:
         db_results = run_database_search(search_term) if search_term else []
-    print(f"DEBUG db_results count: {len(db_results)}")   # ADD THIS LINE
+    print(f"DEBUG db_results count (raw): {len(db_results)}")
 
-    # --- Step 3: LLM generates the response ---
+    # Step 3: deduplicate
+    db_results = deduplicate_results(db_results)
+    print(f"DEBUG db_results count (after dedup): {len(db_results)}")
+
+    # Step 4: filter by student grade
+    student_grade = user_profile.get("mean_grade", "")
+    if student_grade:
+        db_results = filter_by_grade(db_results, student_grade)
+        print(f"DEBUG db_results count (after grade filter): {len(db_results)}")
+
+    # Step 5: LLM response
     response_text = call_llm(user_query, user_profile, history, db_results)
 
-    # --- Step 4: persist context + log ---
+    # Step 6: persist context + log
     if conversation_id:
         try:
             update_conversation_context(conversation_id, user_query, response_text)
