@@ -10,6 +10,12 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
 
+def get_db_connection():
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        return psycopg2.connect(database_url)
+    return psycopg2.connect(dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD, host=DB_HOST, port=DB_PORT)
+
 
 def get_keywords(search_term: str) -> list[str]:
     """Split search term into meaningful keywords, filtering noise words."""
@@ -74,13 +80,7 @@ def main():
         return
 
     try:
-        conn = psycopg2.connect(
-            dbname=DB_NAME,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            host=DB_HOST,
-            port=DB_PORT,
-        )
+        conn = get_db_connection()
     except Exception as e:
         print(f"DB connection failed: {e}", file=sys.stderr)
         return

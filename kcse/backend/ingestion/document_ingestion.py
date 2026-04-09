@@ -11,6 +11,12 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
 
+def get_db_connection():
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        return psycopg2.connect(database_url)
+    return psycopg2.connect(dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD, host=DB_HOST, port=DB_PORT)
+
 def main():
     # Uncomment when you are ready to reload the cleaned enriched degree dataset.
     # ingest_degree_cutoffs()
@@ -48,9 +54,7 @@ def ingest_degree_cutoffs(filename="DEGREE_CUTOFFS_ENRICHED_CLEAN.xlsx", replace
     df = df.where(pd.notna(df), None)
     print("Degree columns from file:", df.columns.tolist())
 
-    conn = psycopg2.connect(
-        dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD, host=DB_HOST, port=DB_PORT
-    )
+    conn = get_db_connection()
     cur = conn.cursor()
 
     table_columns = get_table_columns(cur, "degree_cutoffs")
@@ -88,9 +92,7 @@ def ingest_skillbuilding():
     print("SkillBuilding columns:", df.columns.tolist())
 
     # Connect to PostgreSQL
-    conn = psycopg2.connect(
-        dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD, host=DB_HOST, port=DB_PORT
-    )
+    conn = get_db_connection()
     cur = conn.cursor()
 
     for idx, row in df.iterrows():
@@ -116,9 +118,7 @@ def ingest_artisan_programmes():
     print("Artisan columns:", df.columns.tolist())
 
     # Connect to PostgreSQL
-    conn = psycopg2.connect(
-        dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD, host=DB_HOST, port=DB_PORT
-    )
+    conn = get_db_connection()
     cur = conn.cursor()
 
     for idx, row in df.iterrows():
@@ -145,9 +145,7 @@ def ingest_diploma_programs():
     print("Diploma columns:", df.columns.tolist())
 
     # Connect to PostgreSQL
-    conn = psycopg2.connect(
-        dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD, host=DB_HOST, port=DB_PORT
-    )
+    conn = get_db_connection()
     cur = conn.cursor()
 
     for idx, row in df.iterrows():

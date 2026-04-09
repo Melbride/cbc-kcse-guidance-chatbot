@@ -35,6 +35,9 @@ GRADE_POINTS = {
 }
 #DATABASE CONNECTION
 def get_db_connection():
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        return psycopg2.connect(database_url)
     return psycopg2.connect(
         dbname=os.getenv("DB_NAME", "kcse"),
         user=os.getenv("DB_USER", "postgres"),
