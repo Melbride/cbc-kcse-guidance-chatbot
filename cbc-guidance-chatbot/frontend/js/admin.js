@@ -7,7 +7,7 @@ const API_BASE = (() => {
     
     // Development environments
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return 'http://localhost:8000';
+        return 'https://cbc-kcse-guidance-chatbot.onrender.com';
     }
     
     // Production environments
