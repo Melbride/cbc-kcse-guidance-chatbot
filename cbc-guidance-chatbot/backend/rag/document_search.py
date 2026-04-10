@@ -50,13 +50,9 @@ class _HuggingFaceAPIEmbeddings:
     Calls the HuggingFace Inference API v2 (router endpoint) to embed text.
     Uses all-MiniLM-L6-v2 — same model as the old local version so existing
     Pinecone vectors stay compatible. No torch, no local download.
-
-    HF Inference API v2 endpoint (replaces the deprecated /models/ URL):
-    https://router.huggingface.co/hf-inference/models/<model>/pipeline/feature-extraction
     """
 
     dimension = 384
-    # Updated to the current HF Inference API v2 router URL
     MODEL_URL = (
         "https://router.huggingface.co/hf-inference/models/"
         "sentence-transformers/all-MiniLM-L6-v2/pipeline/feature-extraction"
@@ -80,13 +76,10 @@ class _HuggingFaceAPIEmbeddings:
         return response.json()
 
     def embed_query(self, text: str) -> list:
-        result = self._query(text)
-        # v2 API returns list of floats directly for a single string
-        return result
+        return self._query(text)
 
     def embed_documents(self, texts: list) -> list:
-        result = self._query(texts)
-        return result
+        return self._query(texts)
 
 
 class _EmbeddingsProxy:
@@ -107,11 +100,6 @@ llm = _LLMProxy()
 
 
 def get_embeddings():
-    """
-    Returns singleton embeddings instance.
-    Prefers HuggingFace Inference API (lightweight), falls back to hash-based dummy.
-    Called at startup in main.py so it's ready before first request.
-    """
     global _EMBEDDINGS
     if _EMBEDDINGS is not None:
         return _EMBEDDINGS
@@ -119,7 +107,6 @@ def get_embeddings():
     if HUGGINGFACEHUB_API_TOKEN:
         try:
             instance = _HuggingFaceAPIEmbeddings(HUGGINGFACEHUB_API_TOKEN)
-            # Smoke-test
             test_result = instance.embed_query("test")
             if isinstance(test_result, list) and len(test_result) > 0:
                 _EMBEDDINGS = instance
@@ -138,16 +125,12 @@ def get_embeddings():
 
 
 def get_vectorstore():
-    """
-    Returns singleton Pinecone vector store.
-    Called at startup in main.py.
-    """
     global _VECTORSTORE
     if _VECTORSTORE is not None:
         return _VECTORSTORE
 
     if not PINECONE_API_KEY or not PINECONE_INDEX_NAME:
-        print("Warning: Missing Pinecone configuration (PINECONE_API_KEY or PINECONE_INDEX_NAME).", flush=True)
+        print("Warning: Missing Pinecone configuration.", flush=True)
         return None
 
     try:
@@ -182,12 +165,11 @@ def get_llm():
         _LLM = ChatGroq(
             api_key=groq_api_key,
             model_name="llama-3.1-8b-instant",
-            temperature=0.1,
+            temperature=0.3,
             max_tokens=1000,
         )
-        # Smoke-test Groq so we catch auth errors at startup, not at query time
         test_response = _LLM.invoke("Say OK")
-        print(f"Groq LLM: OK (test response: {getattr(test_response, 'content', '')[:30]})", flush=True)
+        print(f"Groq LLM: OK (test={getattr(test_response, 'content', '')[:20]})", flush=True)
         return _LLM
     except Exception as e:
         print(f"ERROR: Groq init/test failed: {e}", flush=True)
@@ -199,22 +181,16 @@ class _FallbackLLM:
     def invoke(self, prompt: str):
         return SimpleNamespace(
             content=(
-                "I'm experiencing technical difficulties with my language model service. "
-                "I do not have information about that right now. "
-                "Please try again later or ask your teacher for help with this question."
+                "I'm experiencing technical difficulties right now. "
+                "Please try again in a moment."
             )
         )
 
 
 def retrieve_documents(query: str, k: int = 5):
-    """
-    Retrieve top-k documents from Pinecone for the given query.
-    Returns list of (Document, score) tuples, or empty list if unavailable.
-    """
     vectorstore = get_vectorstore()
     if vectorstore is None:
         return []
-
     try:
         return vectorstore.similarity_search_with_score(query, k=k)
     except Exception as e:
@@ -229,41 +205,52 @@ def generate_rag_answer(
     query_type: str,
 ) -> str:
     """
-    Build a prompt from the question and enriched context, call the LLM,
-    and return the cleaned answer string.
+    Build a prompt that makes the LLM behave like a warm guidance counsellor —
+    not a question-answering machine. The bot should:
+      - Use what it knows about the user from context/history
+      - Answer the question, then naturally move the conversation forward
+      - Ask one follow-up question to deepen the guidance
+      - Never dump all information at once
     """
+
     if query_type == "subject_count_query":
-        prompt = f"""You are a helpful CBC Education Guidance Assistant.
+        # For simple factual counts, stay concise — no follow-up needed
+        prompt = f"""You are a CBC Education Guidance Assistant in Kenya.
 
 Question: {question}
 
 {context}
 
 Instructions:
-- Answer ONLY the subject count question in ONE short sentence
+- Answer the subject count question in ONE clear sentence
 - Do NOT explain pathways unless asked
-- Do NOT add greetings
-- Use only the information provided above
+- Do NOT add a greeting
 
 Answer:"""
 
     else:
-        prompt = f"""You are a helpful CBC Education Guidance Assistant for students and parents in Kenya.
+        # Conversational guidance prompt — the key to natural flow
+        prompt = f"""You are a warm, knowledgeable CBC Education Guidance Counsellor helping students and parents in Kenya navigate the CBC system.
 
+You are having an ongoing conversation. Use the context below to understand who you are talking to and what has already been discussed.
+
+--- CONTEXT ---
 {context}
+--- END CONTEXT ---
 
-Question: {question}
+The person just said: "{question}"
 
-Instructions:
-- Do NOT repeat or restate the question
-- Do NOT reference the context directly
-- Start with a greeting ONLY if the user's message is itself a greeting
-- For general pathway questions: briefly explain all 3 pathways
-- For specific subject or career questions: answer directly
-- Answer clearly and briefly in 1-2 short paragraphs only
-- Use only the information provided above
-- Use simple language for parents and students
-- Be encouraging and supportive
+Your role:
+- Respond like a human counsellor, not a search engine
+- Use what you know about the student/parent from the context (their results, pathway, interests, stage)
+- If they share personal information (e.g. "my daughter got ME2"), acknowledge it warmly and use it
+- Give a focused, helpful answer — do NOT list everything you know about CBC at once
+- Use the correct CBC pathway names: STEM, Social Sciences, Arts and Sports Science
+- After answering, ask ONE natural follow-up question to continue the guidance conversation
+  (e.g. "What subjects does she enjoy most?" or "Is she leaning towards any particular career?")
+- Keep your response conversational — 2 to 4 short paragraphs maximum
+- If you don't have enough information to answer well, ask a clarifying question instead of guessing
+- Never say "Based on the documents" or reference your context directly
 
 Answer:"""
 
