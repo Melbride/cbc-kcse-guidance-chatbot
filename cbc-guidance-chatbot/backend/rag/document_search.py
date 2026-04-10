@@ -1,15 +1,14 @@
 """
-Lazy document retrieval and answer generation utilities.
+Document retrieval and answer generation utilities.
 
-This version avoids network-heavy initialization during module import so that
-the FastAPI server can start even when external model endpoints are unavailable.
-The embedding model and vector store are preloaded at server startup via the
-FastAPI startup event in main.py — NOT on the first request.
+Uses the HuggingFace Inference API for embeddings (no local model download,
+no torch, no memory issues on free-tier hosting).
 """
 
 import hashlib
 import os
 import re
+import requests
 from types import SimpleNamespace
 
 from dotenv import load_dotenv
@@ -23,15 +22,12 @@ HUGGINGFACEHUB_API_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 _EMBEDDINGS = None
 _VECTORSTORE = None
 _LLM = None
-_EMBEDDINGS_ERROR = None
-_VECTORSTORE_ERROR = None
-_LLM_ERROR = None
 
 print(f"LOADING document_search from: {__file__}", flush=True)
 
 
 class _FallbackEmbeddings:
-    """Deterministic local fallback so DB/cache code can keep working."""
+    """Deterministic local fallback — no network, no torch, always works."""
 
     dimension = 384
 
@@ -45,10 +41,45 @@ class _FallbackEmbeddings:
             values.append((number / 2147483647.5) - 1.0)
         return values
 
+    def embed_documents(self, texts: list) -> list:
+        return [self.embed_query(t) for t in texts]
+
+
+class _HuggingFaceAPIEmbeddings:
+    """
+    Calls the HuggingFace Inference API to embed text.
+    Uses the same model (all-MiniLM-L6-v2) as the old local version
+    so existing Pinecone vectors stay compatible.
+    No torch, no local download — just a lightweight HTTP call.
+    """
+
+    dimension = 384
+    MODEL_URL = "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
+
+    def __init__(self, api_token: str):
+        self.headers = {"Authorization": f"Bearer {api_token}"}
+        print("HuggingFace API embeddings initialized (no local model).", flush=True)
+
+    def _query(self, payload: dict) -> list:
+        response = requests.post(self.MODEL_URL, headers=self.headers, json=payload, timeout=30)
+        response.raise_for_status()
+        return response.json()
+
+    def embed_query(self, text: str) -> list:
+        result = self._query({"inputs": text, "options": {"wait_for_model": True}})
+        return result
+
+    def embed_documents(self, texts: list) -> list:
+        result = self._query({"inputs": texts, "options": {"wait_for_model": True}})
+        return result
+
 
 class _EmbeddingsProxy:
     def embed_query(self, text: str):
         return get_embeddings().embed_query(text)
+
+    def embed_documents(self, texts: list):
+        return get_embeddings().embed_documents(texts)
 
 
 class _LLMProxy:
@@ -60,55 +91,42 @@ embeddings = _EmbeddingsProxy()
 llm = _LLMProxy()
 
 
-class _LocalEmbeddings:
-    """Local sentence-transformers embeddings - no API needed."""
-
-    dimension = 384
-
-    def __init__(self):
-        from sentence_transformers import SentenceTransformer
-        print("Loading SentenceTransformer model...", flush=True)
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')
-        print("Local embeddings model loaded.", flush=True)
-
-    def embed_query(self, text: str) -> list:
-        return self.model.encode([text])[0].tolist()
-
-    def embed_documents(self, texts: list) -> list:
-        return [v.tolist() for v in self.model.encode(texts)]
-
-
 def get_embeddings():
     """
-    Returns the singleton embeddings instance.
-    Called at startup via main.py startup event so the model is ready
-    before the first request arrives.
+    Returns singleton embeddings instance.
+    Prefers HuggingFace Inference API (lightweight), falls back to hash-based dummy.
+    Called at startup in main.py so it's ready before first request.
     """
-    global _EMBEDDINGS, _EMBEDDINGS_ERROR
+    global _EMBEDDINGS
     if _EMBEDDINGS is not None:
         return _EMBEDDINGS
-    try:
-        _EMBEDDINGS = _LocalEmbeddings()
-        return _EMBEDDINGS
-    except Exception as e:
-        print(f"Local embeddings failed: {e}", flush=True)
-        _EMBEDDINGS = _FallbackEmbeddings()
-        return _EMBEDDINGS
+
+    if HUGGINGFACEHUB_API_TOKEN:
+        try:
+            _EMBEDDINGS = _HuggingFaceAPIEmbeddings(HUGGINGFACEHUB_API_TOKEN)
+            # Smoke-test it works
+            _EMBEDDINGS.embed_query("test")
+            print("HuggingFace API embeddings: OK", flush=True)
+            return _EMBEDDINGS
+        except Exception as e:
+            print(f"HuggingFace API embeddings failed: {e}", flush=True)
+
+    print("WARNING: Falling back to hash-based embeddings. Semantic search will not work.", flush=True)
+    _EMBEDDINGS = _FallbackEmbeddings()
+    return _EMBEDDINGS
 
 
 def get_vectorstore():
     """
-    Returns the singleton Pinecone vector store instance.
-    Called at startup via main.py startup event so the connection is ready
-    before the first request arrives.
+    Returns singleton Pinecone vector store.
+    Called at startup in main.py.
     """
-    global _VECTORSTORE, _VECTORSTORE_ERROR
+    global _VECTORSTORE
     if _VECTORSTORE is not None:
         return _VECTORSTORE
 
     if not PINECONE_API_KEY or not PINECONE_INDEX_NAME:
-        _VECTORSTORE_ERROR = RuntimeError("Missing Pinecone configuration")
-        print("Warning: Missing Pinecone configuration (PINECONE_API_KEY or PINECONE_INDEX_NAME)", flush=True)
+        print("Warning: Missing Pinecone configuration.", flush=True)
         return None
 
     try:
@@ -121,14 +139,14 @@ def get_vectorstore():
         _VECTORSTORE = PineconeVectorStore(index=index, embedding=get_embeddings())
         print("Pinecone vector store connected.", flush=True)
     except Exception as e:
-        _VECTORSTORE_ERROR = e
         print(f"Warning: Pinecone vector store unavailable: {e}", flush=True)
         _VECTORSTORE = None
+
     return _VECTORSTORE
 
 
 def get_llm():
-    global _LLM, _LLM_ERROR
+    global _LLM
     if _LLM is not None:
         return _LLM
 
@@ -142,7 +160,7 @@ def get_llm():
                 temperature=0.1,
                 max_tokens=1000,
             )
-            print("Using Groq LLM", flush=True)
+            print("Using Groq LLM.", flush=True)
             return _LLM
         except Exception as e:
             print(f"Groq init failed: {e}", flush=True)
@@ -156,7 +174,7 @@ class _FallbackLLM:
         return SimpleNamespace(
             content=(
                 "I'm experiencing technical difficulties with my language model service. "
-                "Based on the documents I have I do not have information about that right now. "
+                "I do not have information about that right now. "
                 "Please try again later or ask your teacher for help with this question."
             )
         )
@@ -165,7 +183,7 @@ class _FallbackLLM:
 def retrieve_documents(query: str, k: int = 5):
     """
     Retrieve top-k documents from Pinecone for the given query.
-    Returns list of (Document, score) tuples, or an empty list when retrieval is unavailable.
+    Returns list of (Document, score) tuples, or empty list if unavailable.
     """
     vectorstore = get_vectorstore()
     if vectorstore is None:
