@@ -1,85 +1,113 @@
+"""
+judge_llm.py
+------------
+Validates that LLM answers are grounded in the retrieved context.
+Uses the same Groq client as document_search.py.
+
+FIX: The previous version initialised Groq directly with `Groq(api_key=...)`.
+groq==0.9.0 passes `proxies={}` to httpx internally — httpx>=0.28 removed
+that kwarg and crashes with "unexpected keyword argument 'proxies'".
+
+Solution: use langchain_groq.ChatGroq (same as document_search.py) which
+handles version differences, OR pin httpx==0.27.2 in requirements.txt.
+Both fixes are applied here for defence in depth.
+"""
+
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-_groq_client = None
+_llm_client = None
 judge_model_available = True
 
-def get_groq_client():
-    global _groq_client
-    if _groq_client is not None:
-        return _groq_client
+
+def _get_llm():
+    """Lazy singleton — reuses langchain_groq to avoid the proxies crash."""
+    global _llm_client
+    if _llm_client is not None:
+        return _llm_client
     try:
-        from groq import Groq
-        _groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-        return _groq_client
+        from langchain_groq import ChatGroq
+        _llm_client = ChatGroq(
+            api_key=os.getenv("GROQ_API_KEY"),
+            model_name="llama-3.1-8b-instant",
+            temperature=0.1,
+            max_tokens=300,
+        )
+        return _llm_client
     except Exception as e:
-        print(f"Groq client init failed: {e}")
+        print(f"Judge LLM init failed: {e}")
         return None
 
+
 def validate_answer_grounding(context: str, answer: str, question: str) -> dict:
+    """
+    Check whether an answer is grounded in the retrieved context.
+    Returns a dict with is_grounded, needs_improvement, improved_answer, etc.
+    Falls back gracefully if the LLM is unavailable.
+    """
     global judge_model_available
 
+    _default = {
+        "is_grounded": True,
+        "needs_improvement": False,
+        "is_parent_friendly": True,
+        "improved_answer": None,
+        "reasoning": "Judge model disabled or unavailable.",
+        "raw_response": "",
+        "confidence": 0.7,
+    }
+
     if not judge_model_available:
-        return {
-            "is_grounded": True,
-            "needs_improvement": False,
-            "is_parent_friendly": True,
-            "improved_answer": None,
-            "reasoning": "Judge model disabled.",
-            "raw_response": "",
-            "confidence": 0.7
-        }
+        return _default
 
     try:
-        client = get_groq_client()
+        client = _get_llm()
         if not client:
-            raise RuntimeError("Groq client unavailable")
+            raise RuntimeError("Judge LLM client unavailable")
 
-        judge_prompt = f"""You are evaluating responses for a CBC Education Guidance System used by students and parents.
+        judge_prompt = f"""You are reviewing a response from a CBC Education Guidance chatbot used by Kenyan students and parents.
 
-CONTEXT:
+CONTEXT (what the bot retrieved):
 {context}
 
-QUESTION:
+QUESTION asked:
 {question}
 
-ANSWER:
+ANSWER given:
 {answer}
 
-Evaluate the answer for:
-1. Factual accuracy (must be based on context)
-2. Clarity for parents and students
-3. Educational appropriateness
+Evaluate only these three things:
+1. Is the answer factually grounded in the context above? (GROUNDED: YES or NO)
+2. Is the language clear and simple enough for a parent or Form 1 student? (CLARITY: GOOD or NEEDS IMPROVEMENT)
+3. Is the tone appropriate — encouraging, not scary or confusing? (PARENT_FRIENDLY: YES or NO)
 
-Respond EXACTLY in this format:
-GROUNDED: [YES or NO]
-CLARITY: [GOOD or NEEDS IMPROVEMENT]
-PARENT_FRIENDLY: [YES or NO]
-IMPROVED_VERSION: [If clarity needs improvement]
-REASONING: [Brief explanation]
+If clarity needs improvement, provide a better version.
+
+Respond in EXACTLY this format and nothing else:
+GROUNDED: YES
+CLARITY: GOOD
+PARENT_FRIENDLY: YES
+IMPROVED_VERSION: [only if CLARITY is NEEDS IMPROVEMENT]
+REASONING: [one sentence]
 """
 
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[{"role": "user", "content": judge_prompt}],
-            max_tokens=300,
-            temperature=0.1,
-        )
-        result_text = response.choices[0].message.content.strip()
+        response = client.invoke(judge_prompt)
+        result_text = getattr(response, "content", "").strip()
 
-        is_grounded = "GROUNDED: YES" in result_text
-        needs_improvement = "CLARITY: NEEDS IMPROVEMENT" in result_text
+        is_grounded        = "GROUNDED: YES" in result_text
+        needs_improvement  = "CLARITY: NEEDS IMPROVEMENT" in result_text
         is_parent_friendly = "PARENT_FRIENDLY: YES" in result_text
 
         improved_answer = None
-        if "IMPROVED_VERSION:" in result_text and needs_improvement:
+        if needs_improvement and "IMPROVED_VERSION:" in result_text:
             try:
-                improved_part = result_text.split("IMPROVED_VERSION:")[1]
-                improved_part = improved_part.split("REASONING:")[0]
-                improved_answer = improved_part.strip()
-            except:
+                part = result_text.split("IMPROVED_VERSION:")[1]
+                part = part.split("REASONING:")[0].strip()
+                if part:
+                    improved_answer = part
+            except Exception:
                 pass
 
         reasoning = ""
@@ -87,26 +115,20 @@ REASONING: [Brief explanation]
             reasoning = result_text.split("REASONING:")[1].strip()
 
         return {
-            "is_grounded": is_grounded,
-            "needs_improvement": needs_improvement,
+            "is_grounded":        is_grounded,
+            "needs_improvement":  needs_improvement,
             "is_parent_friendly": is_parent_friendly,
-            "improved_answer": improved_answer,
-            "reasoning": reasoning,
-            "raw_response": result_text,
-            "confidence": 0.9 if is_grounded and is_parent_friendly else 0.6
+            "improved_answer":    improved_answer,
+            "reasoning":          reasoning,
+            "raw_response":       result_text,
+            "confidence":         0.9 if (is_grounded and is_parent_friendly) else 0.6,
         }
 
     except Exception as e:
         error_text = str(e).lower()
         if "quota" in error_text or "429" in error_text:
             judge_model_available = False
-        print("Judge LLM error:", e)
-        return {
-            "is_grounded": True,
-            "needs_improvement": False,
-            "is_parent_friendly": True,
-            "improved_answer": None,
-            "reasoning": str(e),
-            "raw_response": "",
-            "confidence": 0.7
-        }
+            print("Judge LLM: rate limit hit, disabling for this session.")
+        else:
+            print(f"Judge LLM error: {e}")
+        return _default
