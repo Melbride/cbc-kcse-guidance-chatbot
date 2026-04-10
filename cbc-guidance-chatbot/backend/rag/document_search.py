@@ -146,14 +146,6 @@ def get_vectorstore():
 
 
 def get_llm():
-    """
-    Returns singleton LLM instance.
-    FIX: The groq==0.9.0 + httpx>=0.28 combination crashes with
-    'unexpected keyword argument proxies'. We now create the Groq client
-    directly via langchain_groq (which handles the version differences)
-    and avoid passing any httpx client manually.
-    The real fix is pinning httpx==0.27.2 in requirements.txt — do that too.
-    """
     global _LLM
     if _LLM is not None:
         return _LLM
@@ -165,17 +157,14 @@ def get_llm():
             _LLM = ChatGroq(
                 api_key=groq_api_key,
                 model_name="llama-3.1-8b-instant",
-                temperature=0.3,   # Slightly higher = more natural, less robotic
+                temperature=0.1,
                 max_tokens=1000,
             )
-            # Smoke-test
-            test = _LLM.invoke("Hi")
-            print("Using Groq LLM — OK.", flush=True)
+            print("Using Groq LLM.", flush=True)
             return _LLM
         except Exception as e:
             print(f"Groq init failed: {e}", flush=True)
 
-    print("WARNING: Falling back to static LLM responses.", flush=True)
     _LLM = _FallbackLLM()
     return _LLM
 
@@ -184,8 +173,9 @@ class _FallbackLLM:
     def invoke(self, prompt: str):
         return SimpleNamespace(
             content=(
-                "I don't have enough information to answer that right now. "
-                "You can try rephrasing your question, or check with your school's guidance teacher for help."
+                "I'm experiencing technical difficulties with my language model service. "
+                "I do not have information about that right now. "
+                "Please try again later or ask your teacher for help with this question."
             )
         )
 
@@ -215,47 +205,39 @@ def generate_rag_answer(
     """
     Build a prompt from the question and enriched context, call the LLM,
     and return the cleaned answer string.
-
-    IMPROVED: Prompts are now warm and conversational — responses should
-    feel like a real guidance counsellor talking to a student or parent,
-    not a search engine returning a result.
     """
-
-    # ── Subject count queries need a short, direct answer only ───────────────
     if query_type == "subject_count_query":
-        prompt = f"""You are a friendly CBC guidance counsellor helping a student or parent in Kenya.
+        prompt = f"""You are a helpful CBC Education Guidance Assistant.
 
 Question: {question}
 
-Relevant information:
 {context}
 
-Give a short, direct answer in one or two sentences. Be warm and clear.
-Don't repeat the question. Don't add greetings or extra explanations.
+Instructions:
+- Answer ONLY the subject count question in ONE short sentence
+- Do NOT explain pathways unless asked
+- Do NOT add greetings
+- Use only the information provided above
 
 Answer:"""
 
-    # ── All other queries ─────────────────────────────────────────────────────
     else:
-        history_section = f"\nRecent conversation:\n{history}\n" if history else ""
+        prompt = f"""You are a helpful CBC Education Guidance Assistant for students and parents in Kenya.
 
-        prompt = f"""You are a warm, friendly CBC guidance counsellor helping students and parents in Kenya navigate the new CBC curriculum.
-
-Your job is to give clear, honest, encouraging guidance — like a trusted teacher who truly cares.
-You speak simply and directly, as if chatting with a Form 1 student or their parent.
-{history_section}
-Relevant information from CBC documents:
 {context}
 
-Student/Parent question: {question}
+Question: {question}
 
-How to respond:
-- If they greeted you, greet back briefly then answer
-- Be conversational — avoid bullet points unless listing schools or subjects  
-- Never say "Based on the context" or "According to the document" — just answer naturally
-- If you don't know something, say so honestly and suggest they ask their teacher or check the KNEC website
-- Keep it to 2–3 short paragraphs at most
-- Be encouraging — CBC is new and many learners are confused, so reassure them
+Instructions:
+- Do NOT repeat or restate the question
+- Do NOT reference the context directly
+- Start with a greeting ONLY if the user's message is itself a greeting
+- For general pathway questions: briefly explain all 3 pathways
+- For specific subject or career questions: answer directly
+- Answer clearly and briefly in 1-2 short paragraphs only
+- Use only the information provided above
+- Use simple language for parents and students
+- Be encouraging and supportive
 
 Answer:"""
 
