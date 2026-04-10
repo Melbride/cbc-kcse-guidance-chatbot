@@ -47,30 +47,45 @@ class _FallbackEmbeddings:
 
 class _HuggingFaceAPIEmbeddings:
     """
-    Calls the HuggingFace Inference API to embed text.
-    Uses the same model (all-MiniLM-L6-v2) as the old local version
-    so existing Pinecone vectors stay compatible.
-    No torch, no local download — just a lightweight HTTP call.
+    Calls the HuggingFace Inference API v2 (router endpoint) to embed text.
+    Uses all-MiniLM-L6-v2 — same model as the old local version so existing
+    Pinecone vectors stay compatible. No torch, no local download.
+
+    HF Inference API v2 endpoint (replaces the deprecated /models/ URL):
+    https://router.huggingface.co/hf-inference/models/<model>/pipeline/feature-extraction
     """
 
     dimension = 384
-    MODEL_URL = "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
+    # Updated to the current HF Inference API v2 router URL
+    MODEL_URL = (
+        "https://router.huggingface.co/hf-inference/models/"
+        "sentence-transformers/all-MiniLM-L6-v2/pipeline/feature-extraction"
+    )
 
     def __init__(self, api_token: str):
-        self.headers = {"Authorization": f"Bearer {api_token}"}
+        self.headers = {
+            "Authorization": f"Bearer {api_token}",
+            "Content-Type": "application/json",
+        }
         print("HuggingFace API embeddings initialized (no local model).", flush=True)
 
-    def _query(self, payload: dict) -> list:
-        response = requests.post(self.MODEL_URL, headers=self.headers, json=payload, timeout=30)
+    def _query(self, inputs) -> list:
+        response = requests.post(
+            self.MODEL_URL,
+            headers=self.headers,
+            json={"inputs": inputs},
+            timeout=30,
+        )
         response.raise_for_status()
         return response.json()
 
     def embed_query(self, text: str) -> list:
-        result = self._query({"inputs": text, "options": {"wait_for_model": True}})
+        result = self._query(text)
+        # v2 API returns list of floats directly for a single string
         return result
 
     def embed_documents(self, texts: list) -> list:
-        result = self._query({"inputs": texts, "options": {"wait_for_model": True}})
+        result = self._query(texts)
         return result
 
 
@@ -103,13 +118,19 @@ def get_embeddings():
 
     if HUGGINGFACEHUB_API_TOKEN:
         try:
-            _EMBEDDINGS = _HuggingFaceAPIEmbeddings(HUGGINGFACEHUB_API_TOKEN)
-            # Smoke-test it works
-            _EMBEDDINGS.embed_query("test")
-            print("HuggingFace API embeddings: OK", flush=True)
-            return _EMBEDDINGS
+            instance = _HuggingFaceAPIEmbeddings(HUGGINGFACEHUB_API_TOKEN)
+            # Smoke-test
+            test_result = instance.embed_query("test")
+            if isinstance(test_result, list) and len(test_result) > 0:
+                _EMBEDDINGS = instance
+                print(f"HuggingFace API embeddings: OK (dim={len(test_result)})", flush=True)
+                return _EMBEDDINGS
+            else:
+                print(f"HuggingFace API returned unexpected result: {test_result}", flush=True)
         except Exception as e:
             print(f"HuggingFace API embeddings failed: {e}", flush=True)
+    else:
+        print("WARNING: HUGGINGFACEHUB_API_TOKEN not set.", flush=True)
 
     print("WARNING: Falling back to hash-based embeddings. Semantic search will not work.", flush=True)
     _EMBEDDINGS = _FallbackEmbeddings()
@@ -126,7 +147,7 @@ def get_vectorstore():
         return _VECTORSTORE
 
     if not PINECONE_API_KEY or not PINECONE_INDEX_NAME:
-        print("Warning: Missing Pinecone configuration.", flush=True)
+        print("Warning: Missing Pinecone configuration (PINECONE_API_KEY or PINECONE_INDEX_NAME).", flush=True)
         return None
 
     try:
@@ -151,22 +172,27 @@ def get_llm():
         return _LLM
 
     groq_api_key = os.getenv("GROQ_API_KEY")
-    if groq_api_key:
-        try:
-            from langchain_groq import ChatGroq
-            _LLM = ChatGroq(
-                api_key=groq_api_key,
-                model_name="llama-3.1-8b-instant",
-                temperature=0.1,
-                max_tokens=1000,
-            )
-            print("Using Groq LLM.", flush=True)
-            return _LLM
-        except Exception as e:
-            print(f"Groq init failed: {e}", flush=True)
+    if not groq_api_key:
+        print("ERROR: GROQ_API_KEY is not set. LLM will use fallback.", flush=True)
+        _LLM = _FallbackLLM()
+        return _LLM
 
-    _LLM = _FallbackLLM()
-    return _LLM
+    try:
+        from langchain_groq import ChatGroq
+        _LLM = ChatGroq(
+            api_key=groq_api_key,
+            model_name="llama-3.1-8b-instant",
+            temperature=0.1,
+            max_tokens=1000,
+        )
+        # Smoke-test Groq so we catch auth errors at startup, not at query time
+        test_response = _LLM.invoke("Say OK")
+        print(f"Groq LLM: OK (test response: {getattr(test_response, 'content', '')[:30]})", flush=True)
+        return _LLM
+    except Exception as e:
+        print(f"ERROR: Groq init/test failed: {e}", flush=True)
+        _LLM = _FallbackLLM()
+        return _LLM
 
 
 class _FallbackLLM:
