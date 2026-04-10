@@ -51,7 +51,7 @@ from .text_cleaning import (
     build_personalized_guidance_response,
 )
 
-# ── Lazy initialization functions ───────────────────────────────────────────────────
+# ── Lazy initialization functions ─────────────────────────────────────────────
 _query_analyzer = None
 _pathway_recommender = None
 _analytics = None
@@ -79,6 +79,49 @@ def _save_history(user_id, question, answer, mode, metadata=None):
     save_conversation_history_safe(embeddings, user_id, question, answer, mode, metadata)
 
 
+# ── Build a warm, contextual greeting based on what we know about the user ────
+def _build_greeting(profile_data: dict | None, stage: str | None) -> str:
+    """
+    Instead of a fixed greeting, open with a warm question that starts
+    the guidance conversation naturally — like a counsellor would.
+    """
+    if profile_data:
+        name = profile_data.get("student_name") or profile_data.get("name")
+        stage = stage or ""
+
+        if stage == "post_results":
+            opener = f"Welcome back{', ' + name if name else ''}! "
+            return (
+                opener +
+                "I see you've already shared some results with me. "
+                "How are you feeling about them? Are you looking to understand what they mean, "
+                "or are you ready to start thinking about which pathway might suit you?"
+            )
+        elif stage == "post_placement":
+            opener = f"Hello{', ' + name if name else ''}! "
+            return (
+                opener +
+                "I can see you've been placed in a school — congratulations! "
+                "Is there something specific you'd like guidance on, like subject combinations "
+                "or what to expect in your chosen pathway?"
+            )
+        elif stage == "pre_exam":
+            opener = f"Hi{', ' + name if name else ''}! "
+            return (
+                opener +
+                "Good to see you. Since you're still preparing for your exams, "
+                "would you like to talk about what the CBC pathways look like, "
+                "or is there something specific you're trying to prepare for?"
+            )
+
+    # No profile — open with a question to learn about the user
+    return (
+        "Hello! I'm here to help you navigate CBC pathways, subject choices, careers, and schools. "
+        "To give you the most helpful guidance, could you tell me a little about your situation? "
+        "For example — are you a parent or student, and have results come out yet?"
+    )
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def query_rag(req: QueryRequest) -> dict:
@@ -86,7 +129,7 @@ def query_rag(req: QueryRequest) -> dict:
     Unified RAG pipeline.
 
     Routing:
-      greeting            → fixed response, no LLM
+      greeting            → contextual opening question (not a fixed response)
       personalized_guidance → text_cleaning.build_personalized_guidance_response
       source == database  → school_queries.handle_school_query
       continuation        → school_queries.handle_conversation_continuation
@@ -100,56 +143,28 @@ def query_rag(req: QueryRequest) -> dict:
     print(f"Question: {question}")
     print(f"User ID: {user_id}")
     print(f"==================")
-    
-    # This should print to console immediately
     sys.stdout.flush()
-
-    # ── 1. Greeting shortcut ──────────────────────────────────────────────────
-    try:
-        if is_greeting_question(question):
-            greeting_answer = (
-                "Hello! I can help with pathways, subject combinations, careers, and schools. "
-                "You can ask things like: 'What are the best subject combinations for STEM?' or "
-                "'Which schools offer STEM in Nairobi?'"
-            )
-            _save_history(user_id, question, greeting_answer, "general",
-                          {"source_folder": "greeting", "validated": True, "intent": "greeting"})
-            elapsed_ms = int((time.time() - start_time) * 1000)
-            get_analytics().log_query(question, 1.0, 0, elapsed_ms, True, False)
-            return {
-                "question": question,
-                "answer":   greeting_answer,
-                "mode":     "general",
-                "metadata": {
-                    "source_folder":    "greeting",
-                    "confidence_score": 1.0,
-                    "validated":        True,
-                    "intent":           "greeting",
-                },
-            }
-    except Exception as e:
-        # Defensive: if greeting check fails, fall through to main logic
-        pass
 
     from pydantic import ValidationError
     try:
-        # ── 2. Load user profile and stage ────────────────────────────────────
+        # ── 1. Load user profile and stage ────────────────────────────────────
         stage_context        = ""
         stage_update_prompt  = None
         pathway_recommendation = None
         profile_context      = ""
         profile_data         = None
+        stage                = None
 
         if user_id:
             profile = get_db().get_profile(user_id)
             stage   = get_db().get_user_stage(user_id)
 
             if stage == "pre_exam":
-                stage_context = "You're preparing for CBC exams."
+                stage_context = "The student is preparing for CBC exams and hasn't received results yet."
             elif stage == "post_results":
-                stage_context = "You've completed your CBC exams."
+                stage_context = "The student has received their CBC results and is deciding on a pathway."
             elif stage == "post_placement":
-                stage_context = "You've been placed in a school."
+                stage_context = "The student has been placed in a school and is navigating their chosen pathway."
 
             stage_check = get_db().should_prompt_for_stage_update(user_id)
             if stage_check.get("should_prompt"):
@@ -163,6 +178,28 @@ def query_rag(req: QueryRequest) -> dict:
                 pathway_recommendation = get_pathway_recommender().recommend(user_profile_obj)
                 if pathway_recommendation.get("basis") == "no_data":
                     pathway_recommendation = None
+
+        # ── 2. Greeting — open with a question, not a wall of info ────────────
+        try:
+            if is_greeting_question(question):
+                greeting_answer = _build_greeting(profile_data, stage)
+                _save_history(user_id, question, greeting_answer, "general",
+                              {"source_folder": "greeting", "validated": True, "intent": "greeting"})
+                elapsed_ms = int((time.time() - start_time) * 1000)
+                get_analytics().log_query(question, 1.0, 0, elapsed_ms, True, False)
+                return {
+                    "question": question,
+                    "answer":   greeting_answer,
+                    "mode":     "general",
+                    "metadata": {
+                        "source_folder":    "greeting",
+                        "confidence_score": 1.0,
+                        "validated":        True,
+                        "intent":           "greeting",
+                    },
+                }
+        except Exception:
+            pass
 
         # ── 3. Analyse query intent ───────────────────────────────────────────
         analysis   = get_query_analyzer().analyze_query(question, user_id)
@@ -227,18 +264,21 @@ def query_rag(req: QueryRequest) -> dict:
             return cached
 
         # ── 8. Pinecone vector search ─────────────────────────────────────────
-        # Career content, pathway explanations, curriculum questions all go here.
-        # The actual subject/school data lives in PostgreSQL (handled above).
         retrieval_query  = analysis.get("reformulated_query", question)
         print(f"DEBUG: Retrieval query: {retrieval_query}")
         print(f"DEBUG: Analysis source: {analysis.get('source')}")
         print(f"DEBUG: Query type: {analysis.get('query_type')}")
-        
+
         docs_with_scores = retrieve_documents(retrieval_query, k=5)
         print(f"DEBUG: Retrieved {len(docs_with_scores)} documents")
 
         if not docs_with_scores:
-            fallback_answer = "Based on the documents I have I do not have information about that. You may want to ask your teacher or check the official CBC curriculum guides for more details."
+            fallback_answer = (
+                "I don't have specific information about that in my documents. "
+                "Could you tell me a bit more about your situation? For example, "
+                "are you asking about a specific pathway, subject, or school? "
+                "That way I can try to point you in the right direction."
+            )
             fallback = {
                 "question": question,
                 "answer":   fallback_answer,
@@ -255,10 +295,9 @@ def query_rag(req: QueryRequest) -> dict:
         top_docs      = [doc for doc, _ in docs_with_scores[:4]]
         context       = " ".join(doc.page_content for doc in top_docs)
         source_folder = top_docs[0].metadata.get("folder", "unknown")
-        recent_history = build_recent_history_context(get_db, user_id, limit=3)
+        recent_history = build_recent_history_context(get_db, user_id, limit=5)
 
-        # Build full prompt context for document_search.generate_rag_answer
-        # Prepend stage and profile context so the LLM is aware of the learner
+        # Build full prompt context
         enriched_context = "\n".join(filter(None, [
             stage_context,
             profile_context,
@@ -266,7 +305,7 @@ def query_rag(req: QueryRequest) -> dict:
             f"CBC Information:\n{context}",
         ]))
 
-        # ── 9. LLM generation (via document_search.py) ───────────────────────
+        # ── 9. LLM generation ─────────────────────────────────────────────────
         answer = generate_rag_answer(
             question=question,
             context=enriched_context,
@@ -292,8 +331,6 @@ def query_rag(req: QueryRequest) -> dict:
         if query_type == "subject_count_query":
             answer = normalize_subject_count_answer(question, context, answer)
 
-        # Allow full answers - no sentence limit for comprehensive responses
-
         answer = strip_leading_filler(answer, question)
 
         # ── 11. Grounding validation ──────────────────────────────────────────
@@ -301,11 +338,9 @@ def query_rag(req: QueryRequest) -> dict:
         is_grounded       = validation_result.get("is_grounded", True)
         confidence_score  = 0.9 if is_grounded else 0.6
 
-        # Additional validation: Check for out-of-context responses
         question_lower = question.lower()
-        answer_lower = answer.lower()
-        
-        # Check for completely out-of-context responses
+        answer_lower   = answer.lower()
+
         out_of_context_indicators = [
             ("who developed" in question_lower and "computer" in answer_lower),
             ("infrastructure" in question_lower and ("transport" in answer_lower or "sustainability" in answer_lower)),
@@ -313,13 +348,16 @@ def query_rag(req: QueryRequest) -> dict:
             ("school" in question_lower and ("computer" in answer_lower or "transport" in answer_lower)),
             ("infrastructure in schools" in question_lower and ("sustainability" in answer_lower or "development" in answer_lower)),
             ("lack of infrastructure" in question_lower and ("sustainability" in answer_lower or "development" in answer_lower)),
-            # More specific patterns
             ("infrastructure in schools" in question_lower and ("peer training" in answer_lower or "mentorship" in answer_lower)),
             ("lack of infrastructure" in question_lower and ("peer training" in answer_lower or "mentorship" in answer_lower)),
         ]
-        
+
         if any(out_of_context_indicators) or (not is_grounded and validation_result.get("confidence", 1) < 0.3):
-            answer = "Based on the documents I have I do not have information about that. You may want to ask your teacher or check the official CBC curriculum guides for more details."
+            answer = (
+                "I don't have enough information in my documents to answer that confidently. "
+                "Would you like to ask about something else — like pathways, subject combinations, "
+                "or schools in a specific county?"
+            )
             confidence_score = 0.2
 
         _save_history(user_id, question, answer, "general",
@@ -351,7 +389,6 @@ def query_rag(req: QueryRequest) -> dict:
         }
 
     except ValidationError as ve:
-        # Handle empty or invalid question gracefully
         return {
             "question": getattr(req, 'question', None) or "",
             "answer":   "Please enter a question so I can help you. (Your message was empty.)",
@@ -362,7 +399,7 @@ def query_rag(req: QueryRequest) -> dict:
         traceback.print_exc()
         return {
             "question": question,
-            "answer":   "Please try again.",
+            "answer":   "I ran into an issue processing that. Could you try rephrasing?",
             "mode":     "personalized" if user_id else "general",
             "metadata": {"error": str(e)},
         }
