@@ -9,6 +9,10 @@ pypdf==4.0.1
 python-docx==0.8.11
 requests==2.31.0
 
+# httpx must be <0.28 — groq 0.9.0 passes 'proxies' to httpx Client
+# which was removed in httpx 0.28+, causing the startup crash
+httpx==0.27.2
+
 # Pinecone
 pinecone-client==5.0.1
 
@@ -23,8 +27,3 @@ langsmith==0.1.147
 # LLM - Groq
 groq==0.9.0
 langchain-groq==0.1.9
-
-# REMOVED: sentence-transformers, transformers, langchain-huggingface
-# These pull in torch (~800MB) and exceed Render free tier memory.
-# Embeddings are now handled via HuggingFace Inference API using
-# the HUGGINGFACEHUB_API_TOKEN env var — no local model needed.
