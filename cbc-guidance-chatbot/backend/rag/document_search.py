@@ -3,6 +3,8 @@ Lazy document retrieval and answer generation utilities.
 
 This version avoids network-heavy initialization during module import so that
 the FastAPI server can start even when external model endpoints are unavailable.
+The embedding model and vector store are preloaded at server startup via the
+FastAPI startup event in main.py — NOT on the first request.
 """
 
 import hashlib
@@ -25,6 +27,8 @@ _EMBEDDINGS_ERROR = None
 _VECTORSTORE_ERROR = None
 _LLM_ERROR = None
 
+print(f"LOADING document_search from: {__file__}", flush=True)
+
 
 class _FallbackEmbeddings:
     """Deterministic local fallback so DB/cache code can keep working."""
@@ -40,7 +44,7 @@ class _FallbackEmbeddings:
             number = int.from_bytes(digest[:4], "big", signed=False)
             values.append((number / 2147483647.5) - 1.0)
         return values
-print(f"LOADING document_search from: {__file__}", flush=True)
+
 
 class _EmbeddingsProxy:
     def embed_query(self, text: str):
@@ -56,15 +60,14 @@ embeddings = _EmbeddingsProxy()
 llm = _LLMProxy()
 
 
-
-# Local sentence-transformers embeddings - no API needed.
 class _LocalEmbeddings:
     """Local sentence-transformers embeddings - no API needed."""
-    
+
     dimension = 384
 
     def __init__(self):
         from sentence_transformers import SentenceTransformer
+        print("Loading SentenceTransformer model...", flush=True)
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
         print("Local embeddings model loaded.", flush=True)
 
@@ -76,6 +79,11 @@ class _LocalEmbeddings:
 
 
 def get_embeddings():
+    """
+    Returns the singleton embeddings instance.
+    Called at startup via main.py startup event so the model is ready
+    before the first request arrives.
+    """
     global _EMBEDDINGS, _EMBEDDINGS_ERROR
     if _EMBEDDINGS is not None:
         return _EMBEDDINGS
@@ -89,24 +97,32 @@ def get_embeddings():
 
 
 def get_vectorstore():
+    """
+    Returns the singleton Pinecone vector store instance.
+    Called at startup via main.py startup event so the connection is ready
+    before the first request arrives.
+    """
     global _VECTORSTORE, _VECTORSTORE_ERROR
     if _VECTORSTORE is not None:
         return _VECTORSTORE
 
     if not PINECONE_API_KEY or not PINECONE_INDEX_NAME:
         _VECTORSTORE_ERROR = RuntimeError("Missing Pinecone configuration")
+        print("Warning: Missing Pinecone configuration (PINECONE_API_KEY or PINECONE_INDEX_NAME)", flush=True)
         return None
 
     try:
         from langchain_pinecone import PineconeVectorStore
         from pinecone import Pinecone
 
+        print("Connecting to Pinecone...", flush=True)
         pc = Pinecone(api_key=PINECONE_API_KEY)
         index = pc.Index(PINECONE_INDEX_NAME)
         _VECTORSTORE = PineconeVectorStore(index=index, embedding=get_embeddings())
+        print("Pinecone vector store connected.", flush=True)
     except Exception as e:
         _VECTORSTORE_ERROR = e
-        print(f"Warning: Pinecone vector store unavailable: {e}")
+        print(f"Warning: Pinecone vector store unavailable: {e}", flush=True)
         _VECTORSTORE = None
     return _VECTORSTORE
 
@@ -126,10 +142,10 @@ def get_llm():
                 temperature=0.1,
                 max_tokens=1000,
             )
-            print("Using Groq LLM")
+            print("Using Groq LLM", flush=True)
             return _LLM
         except Exception as e:
-            print(f"Groq init failed: {e}")
+            print(f"Groq init failed: {e}", flush=True)
 
     _LLM = _FallbackLLM()
     return _LLM
@@ -158,7 +174,7 @@ def retrieve_documents(query: str, k: int = 5):
     try:
         return vectorstore.similarity_search_with_score(query, k=k)
     except Exception as e:
-        print(f"Warning: document retrieval failed: {e}")
+        print(f"Warning: document retrieval failed: {e}", flush=True)
         return []
 
 
