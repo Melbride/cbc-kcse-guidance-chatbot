@@ -29,20 +29,23 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 #initialize fastapi application
 app = FastAPI(title="CBC/KCSE Guidance Chatbot")
 
-@app.post("/query/")
-def query_endpoint(req: QueryRequest):
-    print("=== /query/ endpoint hit ===", flush=True)
-    result = query_rag(req)
-    print(f"[QUERY ENDPOINT] Question: {getattr(req, 'question', None)}", flush=True)
-    print(f"[QUERY ENDPOINT] Answer: {result.get('answer', None)}", flush=True)
-    return result
-#configure cors middleware for cross-origin requests
+# FIXED: Middleware must come BEFORE any route definitions
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# FIXED: Preload models at startup so the first request doesn't time out
+@app.on_event("startup")
+async def startup_event():
+    print("=== Warming up embedding model and vector store at startup ===", flush=True)
+    from rag.document_search import get_embeddings, get_vectorstore
+    get_embeddings()    # Downloads/loads SentenceTransformer model NOW
+    get_vectorstore()   # Connects to Pinecone NOW
+    print("=== Models ready. Server accepting requests. ===", flush=True)
+
 
 #lazy initialization functions
 def get_pathway_recommender():
@@ -77,6 +80,27 @@ def require_admin(request: Request):
         raise HTTPException(status_code=403, detail="Admin privileges required")
 
     return user
+
+
+#health check endpoint
+@app.get("/")
+def health_check():
+    return {"status": "healthy", "service": "CBC/KCSE Guidance Chatbot"}
+
+
+# FIXED: Single /query/ endpoint (duplicate removed)
+@app.post("/query/")
+def query_endpoint(req: QueryRequest):
+    """
+    Unified RAG endpoint.
+    If user_id is provided, personalization is automatically applied inside query_rag.
+    """
+    print("=== /query/ endpoint hit ===", flush=True)
+    result = query_rag(req)
+    print(f"[QUERY ENDPOINT] Question: {getattr(req, 'question', None)}", flush=True)
+    print(f"[QUERY ENDPOINT] Answer: {result.get('answer', None)}", flush=True)
+    return result
+
 
 # --- Admin Documents Endpoints ---
 @app.get("/documents")
@@ -226,6 +250,7 @@ def delete_document(doc_path: str, request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete document: {str(e)}")
 
+
 # --- Admin User Management Endpoints ---
 @app.put("/users/{user_id}/status")
 def toggle_user_status(user_id: str, active: bool, request: Request):
@@ -233,7 +258,6 @@ def toggle_user_status(user_id: str, active: bool, request: Request):
     require_admin(request)
     try:
         db = get_db()
-        # Update user status in database
         with db.conn.cursor() as cur:
             cur.execute(
                 "UPDATE users SET active = %s, last_active = %s WHERE user_id = %s",
@@ -250,7 +274,6 @@ def delete_user(user_id: str, request: Request):
     require_admin(request)
     try:
         db = get_db()
-        # Delete user (cascades to profiles, conversations, etc.)
         with db.conn.cursor() as cur:
             cur.execute("DELETE FROM users WHERE user_id = %s", (user_id,))
             db.conn.commit()
@@ -258,18 +281,19 @@ def delete_user(user_id: str, request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete user: {str(e)}")
 
+
 # --- Admin Stats Endpoint ---
 @app.get("/admin/stats")
 def admin_stats(request: Request):
     require_admin(request)
     stats = get_db().get_pathway_statistics()
-    # Add user count for dashboard
     try:
         user_count = len(get_db().get_all_users())
     except Exception:
         user_count = 0
     stats["total_users"] = user_count
     return stats
+
 
 # --- Privacy-First Analytics Endpoints ---
 @app.get("/admin/analytics/query-stats")
@@ -308,10 +332,10 @@ def get_audit_log(request: Request, admin_id: Optional[str] = None, days: int = 
     require_admin(request)
     return {"audit_log": get_analytics().get_admin_audit_log(admin_id, days, limit)}
 
+
 # --- Recent Questions Endpoint ---
 @app.get("/recent-questions")
 def recent_questions(request: Request, limit: int = 20):
-    # This fetches the most recent questions/answers from all users
     require_admin(request)
     try:
         db = get_db()
@@ -323,13 +347,11 @@ def recent_questions(request: Request, limit: int = 20):
                 LIMIT %s
             """, (limit,))
             rows = cur.fetchall()
-            # Convert to dicts if needed
             questions = []
             for row in rows:
                 if isinstance(row, dict):
                     questions.append(row)
                 else:
-                    # If row is tuple, map to keys
                     questions.append({
                         "user_id": row[0],
                         "question": row[1],
@@ -340,18 +362,12 @@ def recent_questions(request: Request, limit: int = 20):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load recent questions: {str(e)}")
 
-#health check endpoint
-@app.get("/")
-def health_check():
-    return {"status": "healthy", "service": "CBC/KCSE Guidance Chatbot"}
-
 
 #user management endpoints
 @app.post("/users/")
 def create_user(user: UserCreate):
     return get_db().create_user(name=user.name, email=user.email)
 
-# Admin: List all users
 @app.get("/users/")
 def list_users(request: Request):
     require_admin(request)
@@ -368,22 +384,18 @@ def get_user_by_email(email: str):
 
 @app.get("/user-stage/{user_id}")
 def get_user_stage(user_id: str):
-    # Return canonical journey stage used across CBC flow.
     return {"stage": get_db().get_user_stage(user_id)}
 
 @app.post("/user-profile/{user_id}")
 def save_user_profile(user_id: str, profile: dict):
     """Save or update user profile from frontend"""
-    # Map frontend stage values to database values
     stage_mapping = {
         'before_exam': 'pre_exam',
-        'after_exam': 'post_results', 
+        'after_exam': 'post_results',
         'after_placement': 'post_placement'
     }
-    
     if 'journey_stage' in profile:
         profile['journey_stage'] = stage_mapping.get(profile['journey_stage'], profile['journey_stage'])
-    
     return get_db().save_profile(user_id, profile)
 
 @app.post("/cbc-profile")
@@ -393,16 +405,13 @@ def create_profile(profile: UserProfile, user_id: str):
 @app.put("/update-profile/{user_id}")
 def update_profile(user_id: str, profile: dict):
     """Update user profile with stage mapping"""
-    # Map frontend stage values to database values
     stage_mapping = {
         'before_exam': 'pre_exam',
-        'after_exam': 'post_results', 
+        'after_exam': 'post_results',
         'after_placement': 'post_placement'
     }
-    
     if 'journey_stage' in profile:
         profile['journey_stage'] = stage_mapping.get(profile['journey_stage'], profile['journey_stage'])
-    
     return get_db().update_profile(user_id, profile)
 
 @app.get("/profiles/{user_id}")
@@ -425,15 +434,6 @@ def save_school_placement(user_id: str, placement: SchoolPlacement):
 def get_history(req: HistoryRequest):
     history = get_db().get_user_history(req.user_id, req.limit)
     return {"history": history}
-
-#rag query endpoint
-@app.post("/query/")
-def query_endpoint(req: QueryRequest):
-    """
-    Unified RAG endpoint.
-    If user_id is provided, personalization is automatically applied inside query_rag.
-    """
-    return query_rag(req)
 
 @app.post("/feedback")
 def submit_feedback(payload: dict):
@@ -531,7 +531,6 @@ def get_pathway_recommendation(request: dict):
 
 @app.exception_handler(ValidationError)
 async def validation_exception_handler(request: Request, exc: ValidationError):
-    # Custom friendly error for empty question
     for error in exc.errors():
         if error.get("loc") == ("body", "question") and error.get("type") == "string_too_short":
             return JSONResponse(
@@ -540,7 +539,6 @@ async def validation_exception_handler(request: Request, exc: ValidationError):
                     "detail": "Please enter a question so I can help you. (Your message was empty.)"
                 },
             )
-    # Default: show all validation errors
     return JSONResponse(
         status_code=422,
         content={"detail": exc.errors()},
