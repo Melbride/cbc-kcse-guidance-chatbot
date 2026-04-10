@@ -1,41 +1,25 @@
 fastapi==0.104.1
-
 uvicorn==0.24.0
-
 python-dotenv==1.0.0
-
-pinecone-client==5.0.1
-
-langchain==0.2.0
-
-langchain-core==0.2.43
-
-langchain-groq==0.1.9
-
-langchain-pinecone==0.1.3
-
-langchain-community==0.2.0
-
-langchain-huggingface==0.0.3
-
-langchain-text-splitters==0.2.4
-
-langsmith==0.1.147
-
-groq==0.9.0
-
-sentence-transformers==2.6.1
-
-transformers==4.41.2
-
-numpy==1.26.4
-
+python-multipart==0.0.6
+pydantic==2.7.4
+requests==2.33.1
 psycopg2-binary==2.9.9
-
 pypdf==4.0.1
-
 python-docx==0.8.11
 
-pydantic==2.7.4
+# Vector store
+pinecone-client==5.0.1
+langchain==0.2.0
+langchain-core==0.2.43
+langchain-community==0.2.0
+langchain-text-splitters==0.2.4
+langchain-pinecone==0.1.3
 
-python-multipart==0.0.6
+# LLM
+groq==0.9.0
+langchain-groq==0.1.9
+
+# NOTE: sentence-transformers and torch are intentionally removed.
+# Embeddings are now served via the HuggingFace Inference API (HUGGINGFACEHUB_API_TOKEN).
+# This keeps memory usage well within Render's free tier limits.
