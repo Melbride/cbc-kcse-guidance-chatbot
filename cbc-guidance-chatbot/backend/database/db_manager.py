@@ -103,6 +103,8 @@ class DatabaseManager:
             "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS placed_school VARCHAR(255)",
             "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS placed_pathway VARCHAR(100)",
             "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS journey_stage VARCHAR(50)",
+            # metadata column for onboarding state and feature flags
+            "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb",
         ]
         try:
             with self.conn.cursor() as cur:
@@ -115,9 +117,8 @@ class DatabaseManager:
 
     def _ensure_analytics_constraints(self):
         """Add unique indexes required by analytics upsert queries."""
-        # First ensure tables exist with correct schema
         self._ensure_analytics_tables()
-        
+
         statements = [
             """
             CREATE UNIQUE INDEX IF NOT EXISTS idx_document_usage_hash_unique
@@ -217,13 +218,9 @@ class DatabaseManager:
             print(f"Warning: admin promotion skipped due to error: {e}")
 
 
-# ── County validation ─────────────────────────────────────────────────────
+    # ── County validation ─────────────────────────────────────────────────────
 
     def _validate_school_county_match(self, school_name: str, listed_county: str) -> str:
-        """
-        Validate county by checking if school name contains any known county name.
-        Uses counties loaded from the database — no hardcoding.
-        """
         if not school_name or not listed_county:
             return listed_county
 
@@ -237,9 +234,8 @@ class DatabaseManager:
 
             for county in all_counties:
                 if county == listed_upper:
-                    continue  # skip if it already matches listed county
+                    continue
                 if county in school_upper and county not in listed_upper:
-                    # School name contains a different county name — correct it
                     return county.title()
 
         except Exception as e:
@@ -247,7 +243,8 @@ class DatabaseManager:
 
         return listed_county
 
-# ── Normalization helpers ─────────────────────────────────────────────────
+    # ── Normalization helpers ─────────────────────────────────────────────────
+
     def _normalize_county(self, county: str) -> str:
         if not county:
             return None
@@ -262,7 +259,6 @@ class DatabaseManager:
         return county_mappings.get(normalized, normalized)
 
     def _normalize_pathway(self, pathway: str) -> str:
-        """Normalize pathway name to database format (UPPERCASE)"""
         if not pathway:
             return None
         pathway_lower = pathway.strip().lower()
@@ -286,7 +282,6 @@ class DatabaseManager:
         return pathway.upper()
 
     def _normalize_subject(self, subject: str) -> str:
-        """Normalize subject name to database format (Title Case)"""
         if not subject:
             return None
         subject_lower = subject.strip().lower()
@@ -315,9 +310,6 @@ class DatabaseManager:
     # ── School query methods ──────────────────────────────────────────────────
 
     def get_schools_by_pathway(self, pathway: str, county: str = None, limit: int = 50, gender: str = None) -> List[Dict]:
-        """
-        Get schools offering specific pathway with enhanced case handling and county validation.
-        """
         try:
             pathway_upper = self._normalize_pathway(pathway)
             county_upper = self._normalize_county(county)
@@ -352,34 +344,22 @@ class DatabaseManager:
                     query += " ORDER BY school_name LIMIT %s"
                     params.append(limit)
 
-                    print(f"DEBUG: Executing query with pathway pattern='{pathway_pattern}', county='{county_upper}', gender='{gender}'")
                     cursor.execute(query, params)
                     raw_results = cursor.fetchall()
-                    print(f"DEBUG: Raw query returned {len(raw_results)} results")
 
-                    # Fixed validation — save original county BEFORE any mutation
                     validated_results = []
                     for result in raw_results:
-                        result = dict(result)  # make mutable copy
+                        result = dict(result)
                         original_county = result['county']
                         corrected_county = self._validate_school_county_match(result['school_name'], original_county)
 
                         if corrected_county != original_county:
-                            # School name suggests it belongs to a different county
-                            print(f"DEBUG: Corrected county for {result['school_name']}: {original_county} -> {corrected_county}")
                             result['county'] = corrected_county
                             if corrected_county.upper() == county_upper:
-                                # Correction still matches requested county — keep it
                                 validated_results.append(result)
-                            else:
-                                # Correction points elsewhere — filter out
-                                print(f"DEBUG: Filtered out {result['school_name']} - corrected to {corrected_county}, not {county_upper}")
                         else:
-                            # No correction needed — DB county was correct, keep it
-                            print(f"DEBUG: No correction needed for {result['school_name']} -> {original_county}")
                             validated_results.append(result)
 
-                    print(f"DEBUG: After validation, {len(validated_results)} results remain")
                     results = validated_results
 
                 else:
@@ -396,11 +376,9 @@ class DatabaseManager:
                     query += " ORDER BY school_name LIMIT %s"
                     params.append(limit)
 
-                    print(f"DEBUG: Executing query with pathway pattern='{pathway_pattern}', gender='{gender}' and no county")
                     cursor.execute(query, params)
                     results = cursor.fetchall()
 
-                print(f"DEBUG: Found {len(results)} schools for pathway '{pathway}'")
                 fresh_conn.close()
                 return results
 
@@ -409,9 +387,6 @@ class DatabaseManager:
             return []
 
     def get_schools_by_county(self, county: str, limit: int = 50, gender: str = None) -> List[Dict]:
-        """
-        Get schools by county with county validation.
-        """
         try:
             with self.conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 query = """
@@ -430,25 +405,19 @@ class DatabaseManager:
                 cursor.execute(query, params)
                 raw_results = cursor.fetchall()
 
-                # Fixed validation — save original county BEFORE any mutation
                 validated_results = []
                 for result in raw_results:
-                    result = dict(result)  # make mutable copy
+                    result = dict(result)
                     original_county = result['county']
                     corrected_county = self._validate_school_county_match(result['school_name'], original_county)
 
                     if corrected_county != original_county:
-                        print(f"DEBUG: Corrected county for {result['school_name']}: {original_county} -> {corrected_county}")
                         result['county'] = corrected_county
                         if corrected_county.upper() == county.upper():
                             validated_results.append(result)
-                        else:
-                            print(f"DEBUG: Filtered out {result['school_name']} - corrected to {corrected_county}, not {county.upper()}")
                     else:
-                        print(f"DEBUG: No correction needed for {result['school_name']} -> {original_county}")
                         validated_results.append(result)
 
-                # Convert to list of dicts with parsed pathways
                 schools = []
                 for row in validated_results:
                     school = dict(row)
@@ -469,10 +438,6 @@ class DatabaseManager:
             return []
 
     def get_subject_combinations_by_pathway(self, pathway: str, county: str = None) -> List[str]:
-        """
-        Get unique subject combinations for specific pathway.
-        Returns actual subject combinations (e.g., "Mathematics, Physics, Chemistry").
-        """
         try:
             pathway_upper = self._normalize_pathway(pathway)
             county_upper = self._normalize_county(county)
@@ -481,13 +446,13 @@ class DatabaseManager:
                 pathway_pattern = f"%{pathway_upper}%"
                 if county_upper:
                     query = """
-                        SELECT DISTINCT 
-                            CASE 
-                                WHEN subject_1 IS NOT NULL AND subject_2 IS NOT NULL AND subject_3 IS NOT NULL 
+                        SELECT DISTINCT
+                            CASE
+                                WHEN subject_1 IS NOT NULL AND subject_2 IS NOT NULL AND subject_3 IS NOT NULL
                                 THEN subject_1 || ', ' || subject_2 || ', ' || subject_3
-                                WHEN subject_1 IS NOT NULL AND subject_2 IS NOT NULL 
+                                WHEN subject_1 IS NOT NULL AND subject_2 IS NOT NULL
                                 THEN subject_1 || ', ' || subject_2
-                                WHEN subject_1 IS NOT NULL 
+                                WHEN subject_1 IS NOT NULL
                                 THEN subject_1
                                 ELSE 'No subjects specified'
                             END as combination
@@ -500,13 +465,13 @@ class DatabaseManager:
                     cursor.execute(query, (pathway_pattern, county_upper))
                 else:
                     query = """
-                        SELECT DISTINCT 
-                            CASE 
-                                WHEN subject_1 IS NOT NULL AND subject_2 IS NOT NULL AND subject_3 IS NOT NULL 
+                        SELECT DISTINCT
+                            CASE
+                                WHEN subject_1 IS NOT NULL AND subject_2 IS NOT NULL AND subject_3 IS NOT NULL
                                 THEN subject_1 || ', ' || subject_2 || ', ' || subject_3
-                                WHEN subject_1 IS NOT NULL AND subject_2 IS NOT NULL 
+                                WHEN subject_1 IS NOT NULL AND subject_2 IS NOT NULL
                                 THEN subject_1 || ', ' || subject_2
-                                WHEN subject_1 IS NOT NULL 
+                                WHEN subject_1 IS NOT NULL
                                 THEN subject_1
                                 ELSE 'No subjects specified'
                             END as combination
@@ -531,9 +496,6 @@ class DatabaseManager:
             return []
 
     def get_schools_by_subjects(self, subjects: List[str], county: str = None, limit: int = 50) -> List[Dict]:
-        """
-        Get schools offering specific subject combinations using text search.
-        """
         try:
             county_upper = self._normalize_county(county)
             normalized_subjects = [self._normalize_subject(subject) for subject in subjects]
@@ -562,7 +524,6 @@ class DatabaseManager:
                     cursor.execute(query, (*search_patterns, limit))
 
                 results = cursor.fetchall()
-                print(f"DEBUG: Found {len(results)} schools for subjects {normalized_subjects}")
                 return results
 
         except Exception as e:
@@ -570,9 +531,6 @@ class DatabaseManager:
             return []
 
     def get_pathway_statistics(self) -> Dict:
-        """
-        Get comprehensive statistics about pathways offered.
-        """
         try:
             with self.conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute("""
@@ -611,9 +569,6 @@ class DatabaseManager:
             return {}
 
     def search_schools(self, query: str, limit: int = 50) -> List[Dict]:
-        """
-        Search schools by name or county using partial matching.
-        """
         try:
             with self.conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 search_query = """
@@ -640,9 +595,6 @@ class DatabaseManager:
         page: int = 1,
         page_size: int = 30,
     ) -> Dict:
-        """
-        Get paginated schools catalog with optional filters.
-        """
         try:
             safe_page = max(1, int(page or 1))
             safe_page_size = max(1, min(100, int(page_size or 30)))
@@ -850,7 +802,7 @@ class DatabaseManager:
             return {"status": "success", "message": "Profile saved successfully"}
 
     def get_profile(self, user_id: str):
-        """Get user profile combined with user info with transaction safety"""
+        """Get user profile combined with user info"""
         try:
             database_url = os.getenv("DATABASE_URL")
             if database_url:
@@ -1025,6 +977,54 @@ class DatabaseManager:
 
             self.conn.commit()
             return {"status": "success", "message": "Profile updated successfully"}
+
+    # ── User metadata (onboarding state, feature flags) ──────────────────────
+
+    def get_user_metadata(self, user_id: str, key: str):
+        """
+        Get a metadata value for a user by key.
+        Stored as a JSONB column on user_profiles.
+        Returns the value or None if not found.
+        """
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT metadata
+                    FROM user_profiles
+                    WHERE user_id = %s
+                """, (user_id,))
+                row = cur.fetchone()
+                if not row or not row.get('metadata'):
+                    return None
+                return row['metadata'].get(key)
+        except Exception as e:
+            print(f"Warning: get_user_metadata failed for key '{key}': {e}", flush=True)
+            return None
+
+    def set_user_metadata(self, user_id: str, key: str, value) -> None:
+        """
+        Set a metadata value for a user by key.
+        Stored as a JSONB column on user_profiles.
+        Creates the profile row if it doesn't exist.
+        """
+        try:
+            with self.conn.cursor() as cur:
+                # Ensure profile row exists
+                cur.execute("""
+                    INSERT INTO user_profiles (user_id, metadata)
+                    VALUES (%s, '{}'::jsonb)
+                    ON CONFLICT (user_id) DO NOTHING
+                """, (user_id,))
+                # Merge new key into existing metadata
+                cur.execute("""
+                    UPDATE user_profiles
+                    SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+                    WHERE user_id = %s
+                """, (Json({key: value}), user_id))
+                self.conn.commit()
+        except Exception as e:
+            self.conn.rollback()
+            print(f"Warning: set_user_metadata failed for key '{key}': {e}", flush=True)
 
     # ── Conversation history ──────────────────────────────────────────────────
 
