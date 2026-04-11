@@ -1318,6 +1318,8 @@ async function sendMessage() {
 
         feedbackSubmitted: null,
 
+        stageUpdatePrompt: data.stage_update_prompt || null,
+
       });
 
     } else {
@@ -1504,6 +1506,47 @@ function renderChat() {
 
       textEl.appendChild(feedbackWrap);
 
+      // Stage update banner — shown when bot detects user is in a different stage
+      if (msg.stageUpdatePrompt && msg.stageUpdatePrompt.should_prompt) {
+
+        const banner = document.createElement('div');
+
+        banner.style.cssText = `
+          margin-top: 12px; padding: 10px 14px; border-radius: 8px;
+          background: #eff6ff; border: 1px solid #bfdbfe;
+          font-size: 13px; color: #1e40af; display: flex;
+          align-items: center; gap: 10px; flex-wrap: wrap;
+        `;
+
+        const detectedStage = msg.stageUpdatePrompt.detected_stage || '';
+
+        const stageNames = {
+
+          post_results: 'After Exams (Stage 2)',
+
+          post_placement: 'After Placement (Stage 3)',
+
+          pre_exam: 'Before Exams (Stage 1)',
+
+        };
+
+        const stageName = stageNames[detectedStage] || 'a new stage';
+
+        banner.innerHTML = `
+
+          <span>💡 It looks like your situation may have changed. Update to <strong>${stageName}</strong> for more relevant guidance.</span>
+
+          <button onclick="navigate('stage.html?from=chat')" style="
+            background:#2563eb; color:white; border:none; border-radius:6px;
+            padding:5px 12px; font-size:12px; cursor:pointer; white-space:nowrap;
+          ">Update Stage →</button>
+
+        `;
+
+        textEl.appendChild(banner);
+
+      }
+
     }
 
 
@@ -1548,6 +1591,14 @@ async function selectStage(stage) {
 
   saveStoredProfile(existing);
 
+  // Pass onboarding flag and from-chat flag through to profile page
+
+  const params = new URLSearchParams(window.location.search);
+
+  const isOnboarding = params.get('onboarding') === '1';
+
+  const fromChat = params.get('from') === 'chat';
+
 
 
   // If this stage is already complete, continue directly to chat.
@@ -1562,9 +1613,11 @@ async function selectStage(stage) {
 
   
 
-  // Redirect to profile page
+  // Redirect to profile page, carrying context
 
-  navigate('profile.html');
+  const suffix = isOnboarding ? '?onboarding=1' : (fromChat ? '?from=chat' : '');
+
+  navigate('profile.html' + suffix);
 
 }
 
@@ -1936,7 +1989,23 @@ async function saveProfile() {
 
       localStorage.removeItem('pendingStageMissing');
 
-      alert('Profile saved successfully! Let\'s start your personalized guidance.');
+      // Determine where to go after saving
+
+      const profileParams = new URLSearchParams(window.location.search);
+
+      const isOnboarding = profileParams.get('onboarding') === '1';
+
+      const fromChat = profileParams.get('from') === 'chat';
+
+      if (isOnboarding) {
+
+        alert('Great! Your profile is set up. Let\'s start your personalized guidance.');
+
+      } else {
+
+        alert('Profile updated successfully!');
+
+      }
 
       navigate('chat.html');
 
@@ -2464,8 +2533,6 @@ function checkAuth() {
 
   const path = window.location.pathname;
 
-  console.log('DEBUG PATH:', path); // ADD THIS LINE
-
   const isPublic = path.includes('index.html') || 
 
                    path.includes('login.html') || 
@@ -2485,6 +2552,41 @@ function checkAuth() {
   }
 
   return true;
+
+}
+
+/**
+ * Guard for chat page: if logged-in user has no stage set, send them
+ * to stage.html to complete their profile before chatting.
+ * Called only on chat page load.
+ */
+function checkChatReadiness() {
+
+  const userId = localStorage.getItem('userId');
+
+  if (!userId) return; // guests are allowed (limited messages)
+
+  const profile = getStoredProfile();
+
+  const stage = profile.journey_stage || localStorage.getItem('userStage');
+
+  if (!stage) {
+
+    // No stage selected yet — force them through onboarding
+    localStorage.setItem('postLoginRedirect', 'chat.html');
+
+    navigate('stage.html?onboarding=1');
+
+    return;
+
+  }
+
+  if (!isStageComplete(profile, stage)) {
+
+    // Stage chosen but form not filled — send back to profile
+    navigate('profile.html');
+
+  }
 
 }
 
@@ -3006,6 +3108,9 @@ if (window.location.pathname.includes('dashboard')) {
 
 if (window.location.pathname.includes('chat')) {
 
+  // Guard: logged-in users must have stage + profile filled before chatting
+  checkChatReadiness();
+
   renderChat();
 
   
@@ -3051,4 +3156,3 @@ initializeIndexAnimations();
 initializeHeroImageInteractivity();
 
 };
-
