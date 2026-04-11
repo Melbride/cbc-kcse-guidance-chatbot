@@ -20,6 +20,11 @@
       <p>Select your current stage so we can personalise your guidance.</p>
     </div>
     <div class="page-body">
+      <!-- Onboarding banner shown only on first-time setup -->
+      <div id="onboarding-banner" style="display:none; margin-bottom:20px; padding:12px 16px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; font-size:14px; color:#1e40af;">
+        👋 Welcome! Before you start chatting, let's set up your profile in 2 quick steps so the guidance is relevant to you.
+      </div>
+
       <div class="stage-cards">
         <div class="stage-card">
           <div class="stage-card-emoji">S1</div>
@@ -40,12 +45,27 @@
           <button class="stage-btn s-btn-placed" onclick="selectStage('after_placement')">Select this stage</button>
         </div>
       </div>
-      <div style="margin-top: 24px;">
+
+      <!-- Back link hidden during onboarding, shown when updating -->
+      <div id="back-link-wrap" style="margin-top: 24px;">
         <a href="/cbc-guidance-chatbot/frontend/dashboard.html" style="color: var(--muted); font-size: 13px; text-decoration: none;">Back to dashboard</a>
       </div>
     </div>
   </div>
 </div>
 <script src="/cbc-guidance-chatbot/frontend/js/main.js"></script>
+<script>
+  // Show onboarding banner and hide back link when this is a first-time setup
+  (function() {
+    const params = new URLSearchParams(window.location.search);
+    const isOnboarding = params.get('onboarding') === '1';
+    if (isOnboarding) {
+      const banner = document.getElementById('onboarding-banner');
+      const backLink = document.getElementById('back-link-wrap');
+      if (banner) banner.style.display = 'block';
+      if (backLink) backLink.style.display = 'none';
+    }
+  })();
+</script>
 </body>
 </html>
