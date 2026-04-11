@@ -100,7 +100,7 @@ document.getElementById("signin-form").addEventListener("submit", async (e) => {
     localStorage.setItem("user", JSON.stringify(userData));
     
     // Redirect to main page
-    window.location.href = "index.html";
+    window.location.href = "/kcse/frontend/index.html";
     
   } catch (err) {
     msgElement.textContent = err.message;

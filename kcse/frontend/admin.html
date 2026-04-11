@@ -82,7 +82,7 @@
         const adminToken = localStorage.getItem('adminToken');
         const adminUser = localStorage.getItem('adminUser');
         if (adminToken && adminUser) {
-            window.location.href = 'admin-dashboard.html';
+            window.location.href = '/kcse/frontend/admin-dashboard.html';
         }
 
         document.getElementById('admin-login-form').addEventListener('submit', async function(e) {
@@ -109,7 +109,7 @@
                 if (response.ok) {
                     localStorage.setItem('adminToken', data.token);
                     localStorage.setItem('adminUser', JSON.stringify(data.admin));
-                    window.location.href = 'admin-dashboard.html';
+                    window.location.href = '/kcse/frontend/admin-dashboard.html';
                 } else {
                     msgDiv.classList.add('text-danger');
                     msgDiv.textContent = data.detail || 'Admin login failed';

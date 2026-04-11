@@ -49,7 +49,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: url("images/exam2.jpg") center center / cover no-repeat;
+            background: url("/kcse/frontend/images/exam2.jpg") center center / cover no-repeat;
             opacity: 0.6;
             z-index: -1;
         }
@@ -101,9 +101,9 @@
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="css/landing.css">
-    <link rel="stylesheet" href="css/theme.css?v=20260404">
-    <script src="js/theme.js" defer></script>
+    <link rel="stylesheet" href="/kcse/frontend/css/landing.css">
+    <link rel="stylesheet" href="/kcse/frontend/css/theme.css?v=20260404">
+    <script src="/kcse/frontend/js/theme.js" defer></script>
 </head>
 <body class="landing-body">
     <!-- Preloader -->
@@ -118,7 +118,7 @@
     <header class="landing-navbar">
         <div class="container">
             <div class="landing-nav-wrap">
-                <a class="landing-navbar-brand" href="landing.html">KCSE Guidance AI</a>
+                <a class="landing-navbar-brand" href="/kcse/frontend/landing.html">KCSE Guidance AI</a>
                 <nav class="landing-nav-links" id="landing-nav-links">
                     <a href="#about">About</a>
                     <a href="#features">Features</a>
@@ -126,8 +126,8 @@
                 </nav>
                 <div class="landing-nav-actions" id="nav-actions">
                     <div id="auth-links">
-                        <a href="signin.html" class="landing-nav-login">Sign In</a>
-                        <a href="signup.html" class="landing-nav-signup">Sign Up</a>
+                        <a href="/kcse/frontend/signin.html" class="landing-nav-login">Sign In</a>
+                        <a href="/kcse/frontend/signup.html" class="landing-nav-signup">Sign Up</a>
                     </div>
                     <div id="user-links" class="hidden"></div>
                 </div>
@@ -140,8 +140,8 @@
             <!-- Mobile Menu: floating dropdown -->
             <nav class="mobile-nav" id="mobile-nav">
                 <button class="close-mobile-nav" id="close-mobile-nav" aria-label="Close navigation">&times;</button>
-                <a href="signin.html" class="landing-nav-login">Sign In</a>
-                <a href="signup.html" class="landing-nav-signup">Sign Up</a>
+                <a href="/kcse/frontend/signin.html" class="landing-nav-login">Sign In</a>
+                <a href="/kcse/frontend/signup.html" class="landing-nav-signup">Sign Up</a>
                 <a href="#about">About</a>
                 <a href="#features">Features</a>
                 <a href="#contact">Contact</a>
@@ -330,7 +330,7 @@
                                     e.preventDefault();
                                     localStorage.removeItem("user");
                                     localStorage.removeItem("currentChatId");
-                                    window.location.href = 'signin.html';
+                                    window.location.href = '/kcse/frontend/signin.html';
                                 });
                             }
                     } else {

@@ -288,11 +288,11 @@ document.getElementById("logout").onclick = () => {
   // Only clear authentication data, keep chat history
   localStorage.removeItem("user");
   localStorage.removeItem("currentChatId");
-  window.location.href = "signin.html";
+  window.location.href = "/kcse/frontend/signin.html";
 };
 
 document.getElementById("view-profile").onclick = () => {
-  window.location.href = "profile.html";
+  window.location.href = "/kcse/frontend/profile.html";
 };
 
 window.onload = () => {
@@ -300,7 +300,7 @@ window.onload = () => {
   state.user = JSON.parse(localStorage.getItem("user")) || null;
   
   if (!state.user) {
-    window.location.href = "signin.html";
+    window.location.href = "/kcse/frontend/signin.html";
     return;
   }
 
