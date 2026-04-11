@@ -4,56 +4,170 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KCSE Guidance Chatbot</title>
+    
+    <!-- Critical CSS to prevent white flash -->
+    <style>
+        :root {
+            --kcse-primary: #1e3a8a;
+            --kcse-secondary: #0f766e;
+            --kcse-accent: #0f766e;
+            --kcse-bg: #f8fafc;
+            --kcse-surface: #ffffff;
+        }
+        
+        body.theme-dark {
+            --kcse-bg: #0e1626;
+            --kcse-surface: #121e32;
+        }
+        
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: var(--kcse-bg) !important;
+            color: var(--kcse-text) !important;
+        }
+        
+        .landing-body {
+            background: linear-gradient(180deg, #fbfdff 0%, var(--kcse-bg) 100%) !important;
+            min-height: 100vh;
+        }
+        
+        body.theme-dark .landing-body {
+            background: linear-gradient(180deg, #0e1626 0%, #0b1422 100%) !important;
+        }
+        
+        .landing-hero-section {
+            background: linear-gradient(135deg, rgba(11, 35, 71, 0.8) 0%, rgba(15, 118, 110, 0.7) 50%, rgba(11, 35, 71, 0.6) 100%);
+            min-height: 70vh;
+            position: relative;
+        }
+        
+        .landing-hero-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("images/exam2.jpg") center center / cover no-repeat;
+            opacity: 0.6;
+            z-index: -1;
+        }
+        
+        body.theme-dark .landing-hero-section {
+            background: linear-gradient(135deg, rgba(7, 23, 47, 0.8) 0%, rgba(44, 179, 127, 0.7) 50%, rgba(7, 23, 47, 0.6) 100%);
+        }
+        
+        /* Preloader */
+        .preloader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1e3a8a, #0f766e);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.5s ease;
+        }
+        
+        .preloader.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .preloader-content {
+            text-align: center;
+            color: white;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top: 3px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/kcse/frontend/css/landing.css">
-    <link rel="stylesheet" href="/kcse/frontend/css/theme.css?v=20260404">
-    <script src="/kcse/frontend/js/theme.js" defer></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="css/landing.css">
+    <link rel="stylesheet" href="css/theme.css?v=20260404">
+    <script src="js/theme.js" defer></script>
 </head>
 <body class="landing-body">
+    <!-- Preloader -->
+    <div class="preloader" id="preloader">
+        <div class="preloader-content">
+            <div class="spinner"></div>
+            <h4>Loading KCSE Guidance AI...</h4>
+        </div>
+    </div>
+    
     <!-- Header -->
     <header class="landing-navbar">
         <div class="container">
             <div class="landing-nav-wrap">
                 <a class="landing-navbar-brand" href="landing.html">KCSE Guidance AI</a>
-                <nav class="landing-nav-links">
+                <nav class="landing-nav-links" id="landing-nav-links">
                     <a href="#about">About</a>
                     <a href="#features">Features</a>
                     <a href="#contact">Contact</a>
                 </nav>
                 <div class="landing-nav-actions" id="nav-actions">
                     <div id="auth-links">
-                        <a href="/kcse/frontend/signin.html" class="landing-nav-login">Sign In</a>
-                        <a href="/kcse/frontend/signup.html" class="landing-nav-signup">Sign Up</a>
+                        <a href="signin.html" class="landing-nav-login">Sign In</a>
+                        <a href="signup.html" class="landing-nav-signup">Sign Up</a>
                     </div>
-                    <div id="user-links" class="hidden">
-                        <a href="/kcse/frontend/index.html" class="landing-nav-link">Chat</a>
-                    </div>
+                    <div id="user-links" class="hidden"></div>
                 </div>
+                <button class="hamburger" id="hamburger-btn" aria-label="Open navigation" aria-expanded="false">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
             </div>
+            <!-- Mobile Menu: floating dropdown -->
+            <nav class="mobile-nav" id="mobile-nav">
+                <button class="close-mobile-nav" id="close-mobile-nav" aria-label="Close navigation">&times;</button>
+                <a href="signin.html" class="landing-nav-login">Sign In</a>
+                <a href="signup.html" class="landing-nav-signup">Sign Up</a>
+                <a href="#about">About</a>
+                <a href="#features">Features</a>
+                <a href="#contact">Contact</a>
+            </nav>
         </div>
     </header>
 
     <!-- Hero Section -->
     <section class="hero-section text-center py-5 landing-hero-section">
         <div class="container">
-            <!-- <h1 class="display-5 fw-bold mb-3 landing-hero-title">Personalized KCSE Guidance</h1> -->
-            <p class="lead mb-4 landing-hero-subtitle">Empowering Kenyan students with personalized academic and career guidance.</p>
-            <!-- <a href="signup.html" class="btn btn-primary btn-lg me-2">Get Started</a>
-            <a href="signin.html" class="btn btn-outline-light btn-lg">Sign In</a> -->
+            <h3 class="display-5 fw-bold mb-3 landing-hero-title">Master Your KCSE Journey with AI Guidance</h3>
+            <p class="lead mb-4 landing-hero-subtitle">Get personalized course recommendations, career path insights, and expert guidance tailored to your KCSE subjects and goals.</p>
         </div>
     </section>
 
     <!-- About Section -->
     <section id="about" class="py-3 landing-bg-light">
         <div class="container text-center mb-3">
-            <h2 class="landing-section-title">About</h2>
+            <h2 class="landing-section-title">Why Choose KCSE Guidance AI?</h2>
         </div>
         <div class="container">
-            <div class="row g-3 justify-content-center">
+            <div class="row g-4 justify-content-center">
                 <div class="col-lg-10">
                     <div class="card h-100 shadow-sm p-3 landing-card">
                         <div class="card-body">
-                            <p class="card-text">The KCSE Guidance Chatbot is an AI-powered digital assistant designed to help Kenyan students navigate academic and career guidance. Get personalized advice on subject combinations, university requirements, and career paths based on your KCSE results and interests.</p>
+                            <p class="card-text">Navigate your KCSE journey with confidence using our AI-powered guidance system. Unlike generic career advice, our chatbot analyzes your specific subject combinations, grades, and career aspirations to provide personalized recommendations for university courses, career paths, and subject selection strategies. Built specifically for the Kenyan education system, we help you make informed decisions that align with your strengths and goals.</p>
                         </div>
                     </div>
                 </div>
@@ -103,7 +217,7 @@
     <!-- Features -->
     <section id="features" class="py-3 landing-bg-light mb-5">
         <div class="container text-center mb-3">
-            <h2 class="landing-section-title">Key Features</h2>
+            <h2 class="landing-section-title">Features</h2>
         </div>
         <div class="container">
             <div class="row g-3 justify-content-center">
@@ -112,24 +226,24 @@
                         <div class="col-md-4">
                             <div class="card h-100 shadow-sm p-3 landing-card">
                                 <div class="card-body">
-                                    <h5 class="card-title fw-bold landing-card-title">Personalized Recommendations</h5>
-                                    <p class="card-text small">Discover courses and careers that match your KCSE subjects, grades, and interests.</p>
+                                    <h5 class="card-title fw-bold landing-card-title"><i class="bi bi-mortarboard-fill me-2"></i>KUCCPS Course Guidance</h5>
+                                    <p class="card-text small">Get personalized KUCCPS course guidance based on your KCSE grades, subject combinations, and career goals to explore suitable university options.</p>
                                 </div>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="card h-100 shadow-sm p-3 landing-card">
                                 <div class="card-body">
-                                    <h5 class="card-title fw-bold landing-card-title">Expert Guidance</h5>
-                                    <p class="card-text small">Get advice on subject combinations, university requirements, and career paths from AI-powered insights.</p>
+                                    <h5 class="card-title fw-bold landing-card-title"><i class="bi bi-graph-up me-2"></i>Career Path Guidance</h5>
+                                    <p class="card-text small">Discover career opportunities, market demand, and salary prospects for different professions based on your KCSE performance and interests.</p>
                                 </div>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="card h-100 shadow-sm p-3 landing-card">
                                 <div class="card-body">
-                                    <h5 class="card-title fw-bold landing-card-title">Save Your Profile</h5>
-                                    <p class="card-text small">Create a profile to get ongoing personalized guidance and track your academic journey.</p>
+                                    <h5 class="card-title fw-bold landing-card-title"><i class="bi bi-lightbulb me-2"></i>Subject Selection Advice</h5>
+                                    <p class="card-text small">Receive guidance on subject combinations and strategies that align with your desired career paths and university admission requirements.</p>
                                 </div>
                             </div>
                         </div>
@@ -139,9 +253,8 @@
         </div>
     </section>
 
-
     <!-- Footer -->
-    <footer class="ix-footer">
+    <footer class="ix-footer" id="contact">
         <div class="ix-container ix-footer-grid">
             <div>
                 <h4>Email</h4>
@@ -156,56 +269,96 @@
                 <p>Meru, Kenya</p>
             </div>
         </div>
-        <div class="ix-footnote"> 2026 KCSE Guidance AI</div>
+        <div class="ix-footnote"> 2026 KCSE Guidance AI. All rights reserved.</div>
     </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-          // Navigation state management
-          const user = JSON.parse(localStorage.getItem("user"));
-          const authLinks = document.getElementById('auth-links');
-          const userLinks = document.getElementById('user-links');
-          const logoutLink = document.getElementById('logout-link');
-          
-          if (user) {
-              authLinks.classList.add('hidden');
-              userLinks.classList.remove('hidden');
-              
-              logoutLink.addEventListener('click', (e) => {
-                  e.preventDefault();
-                  // Only clear authentication data, keep chat history
-                  localStorage.removeItem("user");
-                  localStorage.removeItem("currentChatId");
-                  window.location.href = 'signin.html';
-              });
-          } else {
-              authLinks.classList.remove('hidden');
-              userLinks.classList.add('hidden');
-          }
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+                // Hide preloader when page is fully loaded
+                window.addEventListener('load', function() {
+                        setTimeout(function() {
+                                const preloader = document.getElementById('preloader');
+                                if (preloader) {
+                                        preloader.classList.add('hidden');
+                                        setTimeout(function() {
+                                                preloader.style.display = 'none';
+                                        }, 500);
+                                }
+                        }, 500); // Small delay to ensure smooth transition
+                });
 
-          // Card animations
-          const cards = document.querySelectorAll('.landing-card');
-          
-          const observerOptions = {
-            threshold: 0.1,
-            rootMargin: '0px 0px -50px 0px'
-          };
-          
-          const observer = new IntersectionObserver(function(entries) {
-            entries.forEach(entry => {
-              if (entry.isIntersecting) {
-                entry.target.classList.add('animate-in');
-                observer.unobserve(entry.target);
-              }
-            });
-          }, observerOptions);
-          
-          cards.forEach(card => {
-            card.classList.add('animate-on-scroll');
-            observer.observe(card);
-          });
-        });
-    </script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    // Hamburger menu toggle
+                    const hamburgerBtn = document.getElementById('hamburger-btn');
+                    const mobileNav = document.getElementById('mobile-nav');
+                    const closeMobileNav = document.getElementById('close-mobile-nav');
+                    hamburgerBtn.addEventListener('click', function() {
+                        const expanded = hamburgerBtn.getAttribute('aria-expanded') === 'true';
+                        hamburgerBtn.setAttribute('aria-expanded', !expanded);
+                        mobileNav.classList.toggle('open');
+                        document.body.classList.toggle('mobile-menu-open');
+                    });
+                    closeMobileNav.addEventListener('click', function() {
+                        mobileNav.classList.remove('open');
+                        hamburgerBtn.setAttribute('aria-expanded', 'false');
+                        document.body.classList.remove('mobile-menu-open');
+                    });
+                    // Hide mobile menu on link click
+                    mobileNav.querySelectorAll('a').forEach(link => {
+                        link.addEventListener('click', () => {
+                            mobileNav.classList.remove('open');
+                            hamburgerBtn.setAttribute('aria-expanded', 'false');
+                            document.body.classList.remove('mobile-menu-open');
+                        });
+                    });
+
+                    // Navigation state management
+                    const user = JSON.parse(localStorage.getItem("user"));
+                    const authLinks = document.getElementById('auth-links');
+                    const userLinks = document.getElementById('user-links');
+                    const mobileAuthLinks = document.getElementById('mobile-auth-links');
+                    const mobileUserLinks = document.getElementById('mobile-user-links');
+                    const logoutLink = document.getElementById('logout-link');
+
+                    if (user) {
+                            authLinks.classList.add('hidden');
+                            userLinks.classList.remove('hidden');
+                            mobileAuthLinks.classList.add('hidden');
+                            mobileUserLinks.classList.remove('hidden');
+                            if (logoutLink) {
+                                logoutLink.addEventListener('click', (e) => {
+                                    e.preventDefault();
+                                    localStorage.removeItem("user");
+                                    localStorage.removeItem("currentChatId");
+                                    window.location.href = 'signin.html';
+                                });
+                            }
+                    } else {
+                            authLinks.classList.remove('hidden');
+                            userLinks.classList.add('hidden');
+                            mobileAuthLinks.classList.remove('hidden');
+                            mobileUserLinks.classList.add('hidden');
+                    }
+
+                    // Card animations
+                    const cards = document.querySelectorAll('.landing-card');
+                    const observerOptions = {
+                        threshold: 0.1,
+                        rootMargin: '0px 0px -50px 0px'
+                    };
+                    const observer = new IntersectionObserver(function(entries) {
+                        entries.forEach(entry => {
+                            if (entry.isIntersecting) {
+                                entry.target.classList.add('animate-in');
+                                observer.unobserve(entry.target);
+                            }
+                        });
+                    }, observerOptions);
+                    cards.forEach(card => {
+                        card.classList.add('animate-on-scroll');
+                        observer.observe(card);
+                    });
+                });
+        </script>
 </body>
 </html>

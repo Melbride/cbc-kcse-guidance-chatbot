@@ -1,0 +1,7 @@
+/* Signup page specific scrolling fix - enforced */
+body.auth-page {
+  min-height: 100vh !important;
+  height: auto !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
