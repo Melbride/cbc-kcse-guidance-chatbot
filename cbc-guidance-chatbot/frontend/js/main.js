@@ -2556,37 +2556,31 @@ function checkAuth() {
 }
 
 /**
- * Guard for chat page: if logged-in user has no stage set, send them
- * to stage.html to complete their profile before chatting.
- * Called only on chat page load.
+ * Guard for chat page: only blocks if user has never selected a stage.
+ * Once a stage exists (even with incomplete profile), let them into chat.
+ * The bot guides them conversationally.
+ * Never redirects to profile.html to avoid redirect loops.
  */
 function checkChatReadiness() {
 
   const userId = localStorage.getItem('userId');
 
-  if (!userId) return; // guests are allowed (limited messages)
+  if (!userId) return; // guests allowed (limited messages)
 
   const profile = getStoredProfile();
 
   const stage = profile.journey_stage || localStorage.getItem('userStage');
 
+  // Only block if they have never selected a stage at all
   if (!stage) {
 
-    // No stage selected yet — force them through onboarding
     localStorage.setItem('postLoginRedirect', 'chat.html');
 
     navigate('stage.html?onboarding=1');
 
-    return;
-
   }
 
-  if (!isStageComplete(profile, stage)) {
-
-    // Stage chosen but form not filled — send back to profile
-    navigate('profile.html');
-
-  }
+  // Has a stage -> let them into chat regardless of profile completeness
 
 }
 
