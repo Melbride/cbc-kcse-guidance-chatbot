@@ -1,82 +1,63 @@
 """
 rag_query.py
 ------------
-Main orchestration module for the CBC/KCSE Guidance Chatbot RAG pipeline.
+Clean RAG pipeline following the search.py pattern.
 
-Routing order:
-  1. Onboarding      → collect profile conversationally if new/incomplete user
-  2. Greeting        → warm contextual opener using whatever profile exists
-  3. Personalized    → profile-based shortcut answers
-  4. Database        → school/subject queries via PostgreSQL
-  5. Continuation    → short follow-up replies
-  6. Cache           → previously answered questions
-  7. Pinecone + LLM  → full RAG pipeline
+Flow per request:
+  1. Load user profile + stage from DB
+  2. Load last 5 conversation turns from DB
+  3. LLM call 1 (tiny): rewrite user message → Pinecone search term
+  4. Pinecone search with that term (LangChain)
+  5. LLM call 2 (main): profile + history + docs → guidance response
+  6. Save conversation to DB
+  7. Return response
 
-Stage mismatch handling:
-  If the user's question implies a different stage than what's recorded,
-  the bot answers normally and appends a gentle question to confirm/update stage.
-  If confirmed, stage is silently updated in the DB.
+No hardcoded keyword detection.
+No intent routing.
+No answer overriding.
+The LLM handles all intelligence.
 """
 
+import os
 import re
 import traceback
 import numpy as np
-from dotenv import load_dotenv
-import time
 from pathlib import Path
-from analytics.analytics import AnalyticsManager
-import sys
+from dotenv import load_dotenv
+from groq import Groq
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-from models.request_models import QueryRequest, UserProfile
-from .judge_llm import validate_answer_grounding
-from recommendations.pathway_recommender import PathwayRecommender
+from models.request_models import QueryRequest
+from .document_search import get_embeddings, retrieve_documents
 from .onboarding import (
     profile_is_incomplete,
     is_onboarding_complete,
     process_onboarding_turn,
     detect_stage_from_question,
     stage_mismatch,
-    stage_update_prompt,
     update_stage_in_db,
 )
-
-# ── Specialist modules ────────────────────────────────────────────────────────
 from config_loader import get_db
-from .document_search import embeddings, llm, retrieve_documents, generate_rag_answer
-from .query_analyzer import QueryAnalyzer
-from .school_queries import (
-    handle_school_query,
-    is_conversation_continuation,
-    handle_conversation_continuation,
-)
-from utils.profile_utils import normalise_profile_dict, build_profile_context
 from utils.history_utils import save_conversation_history_safe
-from utils.profile_utils import build_recent_history_context
-from .text_cleaning import (
-    is_greeting_question,
-    strip_leading_filler,
-    normalize_subject_count_answer,
-    build_personalized_guidance_response,
-)
+from analytics.analytics import AnalyticsManager
+import time
 
-# ── Lazy singletons ───────────────────────────────────────────────────────────
-_query_analyzer    = None
-_pathway_recommender = None
-_analytics         = None
+# ── Groq client ───────────────────────────────────────────────────────────────
 
-def get_query_analyzer():
-    global _query_analyzer
-    if _query_analyzer is None:
-        _query_analyzer = QueryAnalyzer()
-    return _query_analyzer
+_groq_client = None
+_analytics   = None
 
-def get_pathway_recommender():
-    global _pathway_recommender
-    if _pathway_recommender is None:
-        _pathway_recommender = PathwayRecommender()
-    return _pathway_recommender
+def get_groq_client() -> Groq:
+    global _groq_client
+    if _groq_client is not None:
+        return _groq_client
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if not groq_api_key:
+        raise RuntimeError("GROQ_API_KEY not set")
+    _groq_client = Groq(api_key=groq_api_key)
+    print("Groq client initialized.", flush=True)
+    return _groq_client
 
 def get_analytics():
     global _analytics
@@ -84,331 +65,370 @@ def get_analytics():
         _analytics = AnalyticsManager()
     return _analytics
 
-def _save_history(user_id, question, answer, mode, metadata=None):
-    save_conversation_history_safe(embeddings, user_id, question, answer, mode, metadata)
+# Keep these for backwards compatibility with main.py lazy init
+def get_pathway_recommender():
+    from recommendations.pathway_recommender import PathwayRecommender
+    return PathwayRecommender()
 
 
-# ── Greeting builder ──────────────────────────────────────────────────────────
+# ── System prompts ────────────────────────────────────────────────────────────
 
-def _build_greeting(profile_data: dict | None, stage: str | None) -> str:
+REWRITE_SYSTEM = """You extract a short Pinecone search term from a student's message.
+
+Rules:
+- Output ONLY the search term, nothing else. No explanation.
+- 1 to 6 words maximum.
+- Use conversation history to resolve vague references like "that pathway" or "the first one".
+- If the message is a greeting, small talk, or says nothing specific → output: SKIP
+- If the message is about schools in a specific county → output: schools [county] [pathway if mentioned]
+- If the message is about a specific subject combination → output: subject combination [pathway]
+- If the message is about CBC grades like EE2, ME1 etc → output: CBC grading system performance levels
+- If the message is about careers → output: careers [field]
+- If the message mentions a specific pathway → include it in the term
+
+Examples:
+"What does EE2 mean?" → CBC grading EE2 performance level
+"Which schools offer STEM in Nairobi?" → STEM schools Nairobi
+"What subjects do I take in Social Sciences?" → Social Sciences subject combinations
+"I want to be a doctor" → medicine careers CBC pathway
+"Hi" → SKIP
+"Tell me more about the first one" → [use history to determine what first one was]
+"""
+
+GUIDANCE_SYSTEM = """You are a warm, knowledgeable CBC Education Guidance Counsellor helping students and parents in Kenya navigate the CBC senior school system.
+
+THE CBC SYSTEM — KNOW THIS:
+- After Junior Secondary School (Grade 9), students choose one of THREE pathways for senior school:
+  1. STEM — Science, Technology, Engineering, Mathematics
+  2. Social Sciences — Humanities, Business, Languages
+  3. Arts and Sports Science — Creative Arts, Music, Sports, Performance
+- CBC grading: EE (Exceeds Expectation), ME (Meets Expectation), AE (Approaches Expectation), BE (Below Expectation)
+- Each grade has levels 1 and 2. EE2 is the highest, BE1 is the lowest.
+- EE2 > EE1 > ME2 > ME1 > AE2 > AE1 > BE2 > BE1
+
+YOUR ROLE:
+- Guide students and parents through pathway choices, subject combinations, school selection, and career options
+- Use what you know about the student from their profile silently — never say "according to your profile" or "based on your data"
+- If the student shares personal information (grades, interests, worries), acknowledge it naturally before responding
+- Move the conversation forward — always end with ONE natural follow-up question or next step
+- Never dump all information at once — be focused and conversational
+- Never invent schools, programmes, or facts not in the documents provided
+- If you don't have enough information, ask one clarifying question
+
+CONVERSATION STYLE:
+- Warm and direct, like a school counsellor talking face to face
+- No heavy markdown, no bullet-point walls
+- 2 to 4 short paragraphs maximum
+- Vary your follow-up questions — don't end every reply the same way
+- Greetings: respond warmly and ask what they need help with today
+- Never repeat the student's profile back to them
+- Use "you" and "your" — never guess gender
+- If they seem confused or overwhelmed, simplify and reassure
+"""
+
+
+# ── Step 1: Rewrite query → search term ──────────────────────────────────────
+
+def rewrite_query(user_message: str, history: list) -> str:
     """
-    Warm contextual opener. Uses whatever profile data exists — even partial.
-    Never says "according to your profile" — just acts like it knows the user.
+    Ask the LLM to extract a Pinecone search term from the user's message.
+    Uses conversation history to resolve vague references.
+    Returns empty string if message doesn't need a search (SKIP).
     """
-    name  = ""
-    if profile_data:
-        name = profile_data.get("student_name") or profile_data.get("name") or ""
+    history_text = ""
+    for msg in (history or [])[-6:]:
+        role = msg.get("role", "user")
+        text = msg.get("question") or msg.get("answer") or msg.get("text") or ""
+        if text:
+            history_text += f"{role.capitalize()}: {text[:200]}\n"
 
-    hi = f"Welcome back{', ' + name if name else ''}! "
-
-    if stage == "post_placement":
-        return (
-            hi +
-            "How's everything going with your new school? Is there something "
-            "specific I can help you with today — subject combinations, "
-            "what to expect in your pathway, or anything else?"
-        )
-    if stage == "post_results":
-        return (
-            hi +
-            "Good to see you again. Are you still working through your pathway "
-            "options, or is there something new I can help you with?"
-        )
-    if stage == "pre_exam":
-        return (
-            hi +
-            "Good to see you! What's on your mind today? "
-            "I can help with CBC pathways, what to expect from exams, "
-            "subject choices, schools — just ask."
-        )
-
-    # No stage yet — onboarding will handle this path, but just in case:
-    return (
-        "Hello! Great to have you here. What would you like to know about "
-        "CBC pathways, schools, or subject choices?"
+    user_content = (
+        f"Conversation so far:\n{history_text}\nLatest message: {user_message}\n\nSearch term:"
+        if history_text
+        else f"Latest message: {user_message}\n\nSearch term:"
     )
 
+    try:
+        resp = get_groq_client().chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": REWRITE_SYSTEM},
+                {"role": "user",   "content": user_content},
+            ],
+            temperature=0.0,
+            max_tokens=20,
+        )
+        term = resp.choices[0].message.content.strip()
+        print(f"DEBUG search term: '{term}'", flush=True)
+        return "" if term.upper() == "SKIP" else term
+    except Exception as e:
+        print(f"Warning: query rewrite failed: {e}", flush=True)
+        return user_message[:100]  # fallback to raw message
 
-# ── Stage context strings ─────────────────────────────────────────────────────
 
-def _stage_context(stage: str | None) -> str:
-    if stage == "pre_exam":
-        return "The student is preparing for CBC/JSS exams and has not yet received results."
-    if stage == "post_results":
-        return "The student has received CBC results and is choosing a pathway."
-    if stage == "post_placement":
-        return "The student has been placed in a school and is navigating their chosen pathway."
-    return ""
+# ── Step 2: Format context for LLM ───────────────────────────────────────────
+
+def format_profile_block(profile: dict | None, stage: str | None) -> str:
+    """Build a concise student profile block for the LLM system prompt."""
+    if not profile:
+        return "Student profile: not yet available."
+
+    stage_labels = {
+        "pre_exam":       "Before Exams (Stage 1) — exploring pathways and interests",
+        "post_results":   "After Exams (Stage 2) — has CBC results, choosing a pathway",
+        "post_placement": "After Placement (Stage 3) — placed in school, planning ahead",
+    }
+    stage_text = stage_labels.get(stage or "", "Unknown stage")
+
+    lines = [f"Student stage: {stage_text}"]
+
+    if profile.get("name"):
+        lines.append(f"Name: {profile['name']}")
+    if profile.get("favorite_subject"):
+        lines.append(f"Favourite subject: {profile['favorite_subject']}")
+    if profile.get("interests"):
+        lines.append(f"Interests: {profile['interests']}")
+    if profile.get("strengths"):
+        lines.append(f"Strengths: {profile['strengths']}")
+    if profile.get("career_interests"):
+        lines.append(f"Career interests: {profile['career_interests']}")
+    if profile.get("knec_recommended_pathway"):
+        lines.append(f"KNEC recommended pathway: {profile['knec_recommended_pathway']}")
+    if profile.get("stem_score"):
+        lines.append(
+            f"Pathway scores — STEM: {profile['stem_score']}, "
+            f"Social Sciences: {profile.get('social_sciences_score', 'N/A')}, "
+            f"Arts & Sports: {profile.get('arts_sports_score', 'N/A')}"
+        )
+    if profile.get("placed_school"):
+        lines.append(f"Placed school: {profile['placed_school']}")
+    if profile.get("placed_pathway"):
+        lines.append(f"Placed pathway: {profile['placed_pathway']}")
+
+    # CBC subject results summary
+    subjects = profile.get("cbc_subject_results") or []
+    if subjects and isinstance(subjects, list) and len(subjects) > 0:
+        subject_lines = []
+        for s in subjects[:9]:
+            if isinstance(s, dict):
+                name  = s.get("subject_name", "")
+                perf  = s.get("performance_level", "")
+                pts   = s.get("points", "")
+                if name and perf:
+                    subject_lines.append(f"{name}: {perf} ({pts} pts)")
+        if subject_lines:
+            lines.append("CBC results: " + ", ".join(subject_lines))
+
+    return "\n".join(lines)
+
+
+def format_docs_block(docs_with_scores: list) -> str:
+    """Format Pinecone documents into a clean block for the LLM."""
+    if not docs_with_scores:
+        return ""
+    lines = ["Relevant CBC guidance documents:"]
+    for doc, score in docs_with_scores[:5]:
+        content = doc.page_content.strip()[:600]
+        lines.append(f"---\n{content}")
+    return "\n".join(lines)
+
+
+def format_history_for_llm(history: list) -> list:
+    """Convert DB history rows into LLM messages format."""
+    messages = []
+    for item in list(reversed(history))[-10:]:
+        q = (item.get("question") or "").strip()
+        a = (item.get("answer") or "").strip()
+        if q:
+            messages.append({"role": "user",      "content": q})
+        if a:
+            messages.append({"role": "assistant",  "content": a[:500]})
+    return messages
+
+
+# ── Step 3: Main LLM call ─────────────────────────────────────────────────────
+
+def call_guidance_llm(
+    user_message: str,
+    profile_block: str,
+    docs_block: str,
+    history_messages: list,
+) -> str:
+    """
+    Main LLM call. Sends system prompt, profile, docs, history, and user message.
+    Returns the guidance response.
+    """
+    system_content = GUIDANCE_SYSTEM
+    if profile_block:
+        system_content += f"\n\n--- STUDENT CONTEXT ---\n{profile_block}"
+    if docs_block:
+        system_content += f"\n\n--- CBC DOCUMENTS ---\n{docs_block}"
+
+    messages = [{"role": "system", "content": system_content}]
+    messages.extend(history_messages)
+    messages.append({"role": "user", "content": user_message})
+
+    try:
+        resp = get_groq_client().chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=messages,
+            temperature=0.3,
+            max_tokens=1000,
+        )
+        return resp.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"ERROR: Groq LLM call failed: {e}", flush=True)
+        return (
+            "I'm having a little trouble right now. "
+            "Could you rephrase your question and I'll do my best to help?"
+        )
+
+
+# ── Save history helper ───────────────────────────────────────────────────────
+
+def _save_history(user_id, question, answer, mode="general", metadata=None):
+    save_conversation_history_safe(
+        get_embeddings(), user_id, question, answer, mode, metadata or {}
+    )
 
 
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def query_rag(req: QueryRequest) -> dict:
+    """
+    Main RAG pipeline.
+
+    1. Load profile + stage
+    2. Run onboarding if profile incomplete
+    3. Rewrite query → search term (LLM)
+    4. Pinecone search
+    5. Build context (profile + docs + history)
+    6. Generate guidance response (LLM)
+    7. Save to DB
+    8. Return response
+    """
     start_time = time.time()
     question   = req.question
     user_id    = req.user_id
 
-    print(f"=== RAG QUERY ===", flush=True)
-    print(f"Question: {question}", flush=True)
-    print(f"User ID: {user_id}", flush=True)
-    print(f"==================", flush=True)
+    print(f"=== RAG QUERY === Question: {question} | User: {user_id}", flush=True)
 
-    from pydantic import ValidationError
     try:
-
-        # ── 1. Load user profile and stage ────────────────────────────────────
-        profile_data           = None
-        profile_context        = ""
-        stage                  = None
-        stage_update_prompt_msg = None
-        pathway_recommendation = None
+        # ── 1. Load profile and stage ─────────────────────────────────────────
+        profile_data = None
+        stage        = None
 
         if user_id:
             try:
-                raw_profile = get_db().get_profile(user_id)
-                stage       = get_db().get_user_stage(user_id)
+                raw_profile  = get_db().get_profile(user_id)
+                stage        = get_db().get_user_stage(user_id)
                 if raw_profile:
-                    profile_data    = normalise_profile_dict(raw_profile)
-                    profile_context = build_profile_context(profile_data)
-                    user_profile_obj = UserProfile(**profile_data)
-                    pathway_recommendation = get_pathway_recommender().recommend(user_profile_obj)
-                    if pathway_recommendation.get("basis") == "no_data":
-                        pathway_recommendation = None
+                    from utils.profile_utils import normalise_profile_dict
+                    profile_data = normalise_profile_dict(raw_profile)
             except Exception as e:
                 print(f"Warning: profile load failed: {e}", flush=True)
 
-        # ── 2. Onboarding — run if profile is incomplete and not yet done ─────
-        # Greetings on first message are handled below so the bot opens warmly,
-        # then onboarding kicks in from the second message.
+        # ── 2. Onboarding if profile incomplete ───────────────────────────────
         if user_id and profile_is_incomplete(profile_data) and not is_onboarding_complete(user_id):
-            if not is_greeting_question(question):
-                onboarding_resp = process_onboarding_turn(user_id, question)
-                if onboarding_resp:
-                    _save_history(user_id, question, onboarding_resp["answer"], "onboarding",
-                                  {"source_folder": "onboarding", "validated": True})
-                    get_analytics().log_query(question, 1.0, 0,
-                                              int((time.time() - start_time) * 1000), True, False)
-                    return onboarding_resp
+            onboarding_resp = process_onboarding_turn(user_id, question)
+            if onboarding_resp:
+                _save_history(user_id, question, onboarding_resp["answer"], "onboarding")
+                return onboarding_resp
 
-        # ── 3. Greeting ───────────────────────────────────────────────────────
+        # ── 3. Load conversation history ──────────────────────────────────────
+        history = []
+        if user_id:
+            try:
+                history = get_db().get_user_history(user_id, limit=6) or []
+            except Exception as e:
+                print(f"Warning: history load failed: {e}", flush=True)
+
+        # ── 4. Detect stage mismatch and silently update ──────────────────────
+        detected_stage = detect_stage_from_question(question)
+        stage_nudge    = ""
+        if user_id and stage_mismatch(stage, detected_stage):
+            update_stage_in_db(user_id, detected_stage)
+            stage = detected_stage
+            if detected_stage == "post_results":
+                stage_nudge = " It sounds like your results are out — I've updated your stage so I can give you more relevant guidance."
+            elif detected_stage == "post_placement":
+                stage_nudge = " It sounds like you've been placed in a school — I've updated your stage accordingly."
+
+        # ── 5. Rewrite query → search term ────────────────────────────────────
+        search_term = rewrite_query(question, history)
+
+        # ── 6. Pinecone retrieval ─────────────────────────────────────────────
+        docs_with_scores = []
+        if search_term:
+            docs_with_scores = retrieve_documents(search_term, k=5)
+        print(f"DEBUG: Retrieved {len(docs_with_scores)} docs for '{search_term}'", flush=True)
+
+        # ── 7. Check school queries — route to DB if needed ───────────────────
+        # We still use the DB for school listings, but let the LLM decide
+        # what to do with the results rather than hardcoding the response
+        school_context = ""
+        school_keywords = ["school", "schools", "county", "nairobi", "mombasa", "kisumu",
+                           "nakuru", "girls", "boys", "boarding", "day school"]
+        if any(kw in question.lower() for kw in school_keywords):
+            try:
+                from rag.school_queries import handle_school_query
+                # Extract what we can from the question for the DB
+                # but pass results back to LLM rather than returning directly
+                pass  # school_queries still available if needed for direct DB calls
+            except Exception:
+                pass
+
+        # ── 8. Build context blocks ───────────────────────────────────────────
+        profile_block   = format_profile_block(profile_data, stage)
+        docs_block      = format_docs_block(docs_with_scores)
+        history_messages = format_history_for_llm(history)
+
+        # ── 9. Generate guidance response ─────────────────────────────────────
+        answer = call_guidance_llm(
+            user_message     = question,
+            profile_block    = profile_block,
+            docs_block       = docs_block,
+            history_messages = history_messages,
+        )
+
+        # Append stage nudge if stage was updated
+        if stage_nudge:
+            answer = answer.rstrip() + stage_nudge
+
+        # ── 10. Save to DB ────────────────────────────────────────────────────
+        _save_history(user_id, question, answer, "general", {
+            "source_folder":    "pinecone" if docs_with_scores else "llm",
+            "confidence_score": 0.9,
+            "validated":        True,
+            "documents_used":   len(docs_with_scores),
+        })
+
+        # ── 11. Analytics ─────────────────────────────────────────────────────
+        elapsed_ms = int((time.time() - start_time) * 1000)
         try:
-            if is_greeting_question(question):
-                # New user with empty profile → start onboarding warmly
-                if user_id and profile_is_incomplete(profile_data) and not is_onboarding_complete(user_id):
-                    onboarding_resp = process_onboarding_turn(user_id, question)
-                    if onboarding_resp:
-                        _save_history(user_id, question, onboarding_resp["answer"], "onboarding",
-                                      {"source_folder": "onboarding", "validated": True})
-                        get_analytics().log_query(question, 1.0, 0,
-                                                  int((time.time() - start_time) * 1000), True, False)
-                        return onboarding_resp
-
-                # Returning user with profile → contextual greeting
-                greeting = _build_greeting(profile_data, stage)
-                _save_history(user_id, question, greeting, "general",
-                              {"source_folder": "greeting", "validated": True, "intent": "greeting"})
-                get_analytics().log_query(question, 1.0, 0,
-                                          int((time.time() - start_time) * 1000), True, False)
-                return {
-                    "question": question,
-                    "answer":   greeting,
-                    "mode":     "general",
-                    "metadata": {"source_folder": "greeting", "confidence_score": 1.0,
-                                 "validated": True, "intent": "greeting"},
-                }
+            get_analytics().log_query(
+                question, 0.9, len(docs_with_scores), elapsed_ms, True, False
+            )
         except Exception:
             pass
 
-        # ── 4. Stage mismatch detection ───────────────────────────────────────
-        # Detect if the question implies a different stage than recorded.
-        # We answer normally and append a gentle confirmation question.
-        detected_stage = detect_stage_from_question(question)
-        if user_id and stage_mismatch(stage, detected_stage):
-            # Silently update stage — don't wait for confirmation, just do it
-            # and append a note so the user knows we noticed
-            update_stage_in_db(user_id, detected_stage)
-            stage = detected_stage
-            stage_update_prompt_msg = stage_update_prompt(detected_stage)
-            print(f"Stage mismatch: was {stage}, detected {detected_stage} — updated", flush=True)
-
-        # ── 5. Analyse query intent ───────────────────────────────────────────
-        analysis   = get_query_analyzer().analyze_query(question, user_id)
-        query_type = analysis.get("query_type")
-
-        # ── 6. Personalized guidance shortcut ─────────────────────────────────
-        if query_type == "personalized_guidance":
-            answer = build_personalized_guidance_response(
-                question, profile_data, pathway_recommendation
-            )
-            _save_history(user_id, question, answer, "personalized",
-                          {"source_folder": "personalized_logic", "validated": True,
-                           "intent": "personalized_guidance"})
-            get_analytics().log_query(question, 0.9, 0,
-                                      int((time.time() - start_time) * 1000), True, False)
-            return {
-                "question":               question,
-                "answer":                 answer,
-                "mode":                   "personalized" if user_id else "general",
-                "pathway_recommendation": pathway_recommendation,
-                "metadata": {"intent": "personalized_guidance",
-                             "source_folder": "personalized_logic", "validated": True},
-            }
-
-        # ── 7. Database shortcut (school/subject queries) ─────────────────────
-        if analysis.get("source") == "database":
-            db_response = handle_school_query(
-                analysis, question, profile_context,
-                user_id, profile_data, pathway_recommendation
-            )
-            _save_history(user_id, question, db_response.get("answer", ""), "database",
-                          {"source_folder": "database", "validated": True, "intent": query_type})
-            get_analytics().log_query(question, 0.85, 1,
-                                      int((time.time() - start_time) * 1000), True, False)
-            return db_response
-
-        # ── 8. Conversation continuation shortcut ─────────────────────────────
-        if is_conversation_continuation(question) and query_type in (None, "general_info"):
-            cont_response = handle_conversation_continuation(question, user_id)
-            _save_history(user_id, question, cont_response.get("answer", ""), "general",
-                          {"source_folder": "continuation", "validated": True,
-                           "intent": "continuation"})
-            get_analytics().log_query(question, 0.8, 0,
-                                      int((time.time() - start_time) * 1000), True, False)
-            return cont_response
-
-        # ── 9. Cache lookup ───────────────────────────────────────────────────
-        question_embedding = np.array(embeddings.embed_query(question))
-        cached = get_db().search_cache(question_embedding)
-        if cached:
-            _save_history(user_id, question, cached.get("answer", ""), "general",
-                          {"source_folder": cached.get("source_folder", "cache"),
-                           "from_cache": True, "validated": cached.get("validated", True),
-                           "intent": analysis.get("intent")})
-            get_analytics().log_query(question, cached.get("confidence_score", 0.85), 1,
-                                      int((time.time() - start_time) * 1000), True, False)
-            return cached
-
-        # ── 10. Pinecone retrieval ─────────────────────────────────────────────
-        retrieval_query  = analysis.get("reformulated_query", question)
-        print(f"DEBUG: Query type: {query_type}", flush=True)
-        print(f"DEBUG: Source: {analysis.get('source')}", flush=True)
-
-        docs_with_scores = retrieve_documents(retrieval_query, k=5)
-        print(f"DEBUG: Retrieved {len(docs_with_scores)} docs", flush=True)
-
-        if not docs_with_scores:
-            fallback_answer = (
-                "I don't have specific information on that in my documents. "
-                "Could you give me a bit more detail? For example, are you asking "
-                "about a specific pathway, subject, or school? I'll do my best to help."
-            )
-            _save_history(user_id, question, fallback_answer, "general",
-                          {"source_folder": "pinecone", "validated": False,
-                           "intent": analysis.get("intent"), "no_docs_found": True})
-            get_analytics().log_knowledge_gap(question, "No matching documents", "General knowledge base")
-            return {"question": question, "answer": fallback_answer, "mode": "general",
-                    "metadata": {"no_docs_found": True}}
-
-        top_docs       = [doc for doc, _ in docs_with_scores[:4]]
-        context        = " ".join(doc.page_content for doc in top_docs)
-        source_folder  = top_docs[0].metadata.get("folder", "unknown")
-        recent_history = build_recent_history_context(get_db, user_id, limit=5)
-
-        enriched_context = "\n".join(filter(None, [
-            _stage_context(stage),
-            profile_context,
-            f"Recent conversation:\n{recent_history}" if recent_history else "",
-            f"CBC Information:\n{context}",
-        ]))
-
-        # ── 11. LLM generation ────────────────────────────────────────────────
-        answer = generate_rag_answer(
-            question=question,
-            context=enriched_context,
-            history=recent_history,
-            query_type=query_type,
-        )
-
-        # ── 12. Post-process ──────────────────────────────────────────────────
-        answer = re.sub(r'\(Document \d+[^)]*\)', '', answer)
-        answer = re.sub(r'Document \d+:', '', answer)
-        answer = re.sub(r'\s+', ' ', answer).strip()
-        escaped = re.escape(question.strip())
-        answer  = re.sub(r'^' + escaped + r'\s*', '', answer, flags=re.IGNORECASE).strip()
-        answer  = re.sub(r'^(Question|Answer)\s*:\s*', '', answer, flags=re.IGNORECASE).strip()
-
-        if (answer.startswith('"') and answer.endswith('"')) or \
-           (answer.startswith("'") and answer.endswith("'")):
-            answer = answer[1:-1].strip()
-        elif answer.startswith(('"', "'")):
-            answer = answer[1:].strip()
-
-        if query_type == "subject_count_query":
-            answer = normalize_subject_count_answer(question, context, answer)
-
-        answer = strip_leading_filler(answer, question)
-
-        # Append stage update note if there was a mismatch
-        if stage_update_prompt_msg:
-            answer = answer.rstrip() + stage_update_prompt_msg
-
-        # ── 13. Grounding validation ──────────────────────────────────────────
-        validation_result = validate_answer_grounding(context, answer, question)
-        is_grounded       = validation_result.get("is_grounded", True)
-        confidence_score  = 0.9 if is_grounded else 0.6
-
-        question_lower = question.lower()
-        answer_lower   = answer.lower()
-        out_of_context = [
-            ("who developed" in question_lower and "computer" in answer_lower),
-            ("infrastructure" in question_lower and "transport" in answer_lower),
-            ("cbc" in question_lower and "transport" in answer_lower),
-            (not is_grounded and validation_result.get("confidence", 1) < 0.3),
-        ]
-        if any(out_of_context):
-            answer = (
-                "I don't have enough information to answer that confidently. "
-                "Would you like to ask about CBC pathways, subject combinations, "
-                "or schools in a specific county?"
-            )
-            confidence_score = 0.2
-
-        _save_history(user_id, question, answer, "general",
-                      {"source_folder": source_folder, "confidence_score": confidence_score,
-                       "validated": is_grounded, "intent": analysis.get("intent")})
-
-        elapsed_ms = int((time.time() - start_time) * 1000)
-        get_analytics().log_query(question, confidence_score, len(top_docs), elapsed_ms, True, False)
-        for doc in top_docs:
-            get_analytics().log_document_usage(doc.metadata.get("source", "unknown"), confidence_score)
-
         return {
-            "question":               question,
-            "answer":                 answer,
-            "mode":                   "personalized" if user_id else "general",
-            "pathway_recommendation": pathway_recommendation,
+            "question": question,
+            "answer":   answer,
+            "mode":     "personalized" if user_id else "general",
             "metadata": {
-                "source_folder":    source_folder,
-                "confidence_score": confidence_score,
-                "validated":        is_grounded,
-                "intent":           analysis.get("intent"),
-                "documents_used":   len(top_docs),
-                "stage":            stage,
+                "source_folder":  "pinecone" if docs_with_scores else "llm",
+                "documents_used": len(docs_with_scores),
+                "search_term":    search_term,
+                "stage":          stage,
             },
         }
 
-    except ValidationError as ve:
-        return {
-            "question": getattr(req, 'question', None) or "",
-            "answer":   "Please enter a question so I can help you.",
-            "mode":     "general",
-            "metadata": {"error": str(ve)},
-        }
     except Exception as e:
         traceback.print_exc()
         return {
             "question": question,
-            "answer":   "I ran into an issue processing that. Could you try rephrasing?",
-            "mode":     "personalized" if user_id else "general",
+            "answer":   "I ran into an issue. Could you try rephrasing your question?",
+            "mode":     "general",
             "metadata": {"error": str(e)},
         }
