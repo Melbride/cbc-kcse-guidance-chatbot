@@ -37,14 +37,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# FIXED: Preload models at startup so the first request doesn't time out
+# Preload embeddings and Pinecone at startup so first request is fast
 @app.on_event("startup")
 async def startup_event():
-    print("=== Warming up embedding model and vector store at startup ===", flush=True)
+    print("=== Starting up CBC Guidance Chatbot ===", flush=True)
     from rag.document_search import get_embeddings, get_vectorstore
-    get_embeddings()    # Downloads/loads SentenceTransformer model NOW
-    get_vectorstore()   # Connects to Pinecone NOW
-    print("=== Models ready. Server accepting requests. ===", flush=True)
+    from rag.rag_query import get_groq_client
+    get_embeddings()    # Connect to HuggingFace API
+    get_vectorstore()   # Connect to Pinecone
+    get_groq_client()   # Initialize Groq client
+    print("=== Ready. Server accepting requests. ===", flush=True)
 
 
 #lazy initialization functions
