@@ -21,7 +21,12 @@
     </div>
     <div class="page-body">
 <div style="max-width: 640px;">
-  
+
+  <!-- Onboarding step indicator — only shown during first-time setup -->
+  <div id="onboarding-step-banner" style="display:none; margin-bottom:20px; padding:12px 16px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; font-size:14px; color:#166534;">
+    ✅ Step 2 of 2 — Fill in a few details and you're ready to chat!
+  </div>
+
   <!-- User Info Display Card -->
   <div class="profile-info-card">
     <div class="profile-info-header">
@@ -30,7 +35,7 @@
         <h3 id="profile-name">User Name</h3>
         <p id="profile-email" class="text-muted">email@example.com</p>
       </div>
-      <a href="/cbc-guidance-chatbot/frontend/stage.html" class="profile-stage-btn">Change Stage</a>
+      <a id="change-stage-btn" href="/cbc-guidance-chatbot/frontend/stage.html" class="profile-stage-btn">Change Stage</a>
     </div>
     <div class="profile-info-details">
       <div class="profile-detail-row">
@@ -149,69 +154,15 @@
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td>901</td>
-                <td>English</td>
-                <td><select id="perf-901" class="form-select form-select-sm" onchange="updatePerformanceDescription('901')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td>
-                <td><input id="pts-901" type="number" min="1" max="8" class="form-control form-control-sm"></td>
-                <td><input id="desc-901" type="text" class="form-control form-control-sm" readonly></td>
-              </tr>
-              <tr>
-                <td>902</td>
-                <td>Kiswahili</td>
-                <td><select id="perf-902" class="form-select form-select-sm" onchange="updatePerformanceDescription('902')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td>
-                <td><input id="pts-902" type="number" min="1" max="8" class="form-control form-control-sm"></td>
-                <td><input id="desc-902" type="text" class="form-control form-control-sm" readonly></td>
-              </tr>
-              <tr>
-                <td>903</td>
-                <td>Mathematics</td>
-                <td><select id="perf-903" class="form-select form-select-sm" onchange="updatePerformanceDescription('903')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td>
-                <td><input id="pts-903" type="number" min="1" max="8" class="form-control form-control-sm"></td>
-                <td><input id="desc-903" type="text" class="form-control form-control-sm" readonly></td>
-              </tr>
-              <tr>
-                <td>905</td>
-                <td>Integrated Science</td>
-                <td><select id="perf-905" class="form-select form-select-sm" onchange="updatePerformanceDescription('905')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td>
-                <td><input id="pts-905" type="number" min="1" max="8" class="form-control form-control-sm"></td>
-                <td><input id="desc-905" type="text" class="form-control form-control-sm" readonly></td>
-              </tr>
-              <tr>
-                <td>906</td>
-                <td>Agriculture</td>
-                <td><select id="perf-906" class="form-select form-select-sm" onchange="updatePerformanceDescription('906')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td>
-                <td><input id="pts-906" type="number" min="1" max="8" class="form-control form-control-sm"></td>
-                <td><input id="desc-906" type="text" class="form-control form-control-sm" readonly></td>
-              </tr>
-              <tr>
-                <td>907</td>
-                <td>Social Studies</td>
-                <td><select id="perf-907" class="form-select form-select-sm" onchange="updatePerformanceDescription('907')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td>
-                <td><input id="pts-907" type="number" min="1" max="8" class="form-control form-control-sm"></td>
-                <td><input id="desc-907" type="text" class="form-control form-control-sm" readonly></td>
-              </tr>
-              <tr>
-                <td>908</td>
-                <td>Christian Religious Education</td>
-                <td><select id="perf-908" class="form-select form-select-sm" onchange="updatePerformanceDescription('908')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td>
-                <td><input id="pts-908" type="number" min="1" max="8" class="form-control form-control-sm"></td>
-                <td><input id="desc-908" type="text" class="form-control form-control-sm" readonly></td>
-              </tr>
-              <tr>
-                <td>911</td>
-                <td>Creative Arts & Sports</td>
-                <td><select id="perf-911" class="form-select form-select-sm" onchange="updatePerformanceDescription('911')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td>
-                <td><input id="pts-911" type="number" min="1" max="8" class="form-control form-control-sm"></td>
-                <td><input id="desc-911" type="text" class="form-control form-control-sm" readonly></td>
-              </tr>
-              <tr>
-                <td>912</td>
-                <td>Pre-technical Studies</td>
-                <td><select id="perf-912" class="form-select form-select-sm" onchange="updatePerformanceDescription('912')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td>
-                <td><input id="pts-912" type="number" min="1" max="8" class="form-control form-control-sm"></td>
-                <td><input id="desc-912" type="text" class="form-control form-control-sm" readonly></td>
-              </tr>
+              <tr><td>901</td><td>English</td><td><select id="perf-901" class="form-select form-select-sm" onchange="updatePerformanceDescription('901')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td><td><input id="pts-901" type="number" min="1" max="8" class="form-control form-control-sm"></td><td><input id="desc-901" type="text" class="form-control form-control-sm" readonly></td></tr>
+              <tr><td>902</td><td>Kiswahili</td><td><select id="perf-902" class="form-select form-select-sm" onchange="updatePerformanceDescription('902')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td><td><input id="pts-902" type="number" min="1" max="8" class="form-control form-control-sm"></td><td><input id="desc-902" type="text" class="form-control form-control-sm" readonly></td></tr>
+              <tr><td>903</td><td>Mathematics</td><td><select id="perf-903" class="form-select form-select-sm" onchange="updatePerformanceDescription('903')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td><td><input id="pts-903" type="number" min="1" max="8" class="form-control form-control-sm"></td><td><input id="desc-903" type="text" class="form-control form-control-sm" readonly></td></tr>
+              <tr><td>905</td><td>Integrated Science</td><td><select id="perf-905" class="form-select form-select-sm" onchange="updatePerformanceDescription('905')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td><td><input id="pts-905" type="number" min="1" max="8" class="form-control form-control-sm"></td><td><input id="desc-905" type="text" class="form-control form-control-sm" readonly></td></tr>
+              <tr><td>906</td><td>Agriculture</td><td><select id="perf-906" class="form-select form-select-sm" onchange="updatePerformanceDescription('906')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td><td><input id="pts-906" type="number" min="1" max="8" class="form-control form-control-sm"></td><td><input id="desc-906" type="text" class="form-control form-control-sm" readonly></td></tr>
+              <tr><td>907</td><td>Social Studies</td><td><select id="perf-907" class="form-select form-select-sm" onchange="updatePerformanceDescription('907')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td><td><input id="pts-907" type="number" min="1" max="8" class="form-control form-control-sm"></td><td><input id="desc-907" type="text" class="form-control form-control-sm" readonly></td></tr>
+              <tr><td>908</td><td>Christian Religious Education</td><td><select id="perf-908" class="form-select form-select-sm" onchange="updatePerformanceDescription('908')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td><td><input id="pts-908" type="number" min="1" max="8" class="form-control form-control-sm"></td><td><input id="desc-908" type="text" class="form-control form-control-sm" readonly></td></tr>
+              <tr><td>911</td><td>Creative Arts & Sports</td><td><select id="perf-911" class="form-select form-select-sm" onchange="updatePerformanceDescription('911')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td><td><input id="pts-911" type="number" min="1" max="8" class="form-control form-control-sm"></td><td><input id="desc-911" type="text" class="form-control form-control-sm" readonly></td></tr>
+              <tr><td>912</td><td>Pre-technical Studies</td><td><select id="perf-912" class="form-select form-select-sm" onchange="updatePerformanceDescription('912')"><option value="">Select</option><option value="EE2">EE2</option><option value="EE1">EE1</option><option value="ME2">ME2</option><option value="ME1">ME1</option><option value="AE2">AE2</option><option value="AE1">AE1</option><option value="BE2">BE2</option><option value="BE1">BE1</option></select></td><td><input id="pts-912" type="number" min="1" max="8" class="form-control form-control-sm"></td><td><input id="desc-912" type="text" class="form-control form-control-sm" readonly></td></tr>
             </tbody>
           </table>
         </div>
@@ -235,13 +186,38 @@
       </div>
     </div>
     
-    <button type="button" class="btn btn-primary w-100" onclick="saveProfile()">Continue to Guidance</button>
-    <a href="/cbc-guidance-chatbot/frontend/stage.html" class="btn btn-link w-100 mt-2">Back</a>
+    <button type="button" id="save-profile-btn" class="btn btn-primary w-100" onclick="saveProfile()">Continue to Guidance</button>
+    <!-- Back button hidden during onboarding -->
+    <a id="profile-back-btn" href="/cbc-guidance-chatbot/frontend/stage.html" class="btn btn-link w-100 mt-2">Back</a>
   </form>
-</div><!-- end max-width -->
-    </div><!-- end page-body -->
-  </div><!-- end main-content -->
-</div><!-- end app-layout -->
+</div>
+    </div>
+  </div>
+</div>
 <script src="/cbc-guidance-chatbot/frontend/js/main.js"></script>
+<script>
+  // Adjust UI based on whether this is onboarding or a profile update
+  (function() {
+    const params = new URLSearchParams(window.location.search);
+    const isOnboarding = params.get('onboarding') === '1';
+    const fromChat = params.get('from') === 'chat';
+
+    if (isOnboarding) {
+      // Show step indicator, hide back button, update save button text
+      const banner = document.getElementById('onboarding-step-banner');
+      const backBtn = document.getElementById('profile-back-btn');
+      const saveBtn = document.getElementById('save-profile-btn');
+      const changeStageBtn = document.getElementById('change-stage-btn');
+      if (banner) banner.style.display = 'block';
+      if (backBtn) backBtn.style.display = 'none';
+      if (saveBtn) saveBtn.textContent = 'Start Chatting →';
+      if (changeStageBtn) changeStageBtn.style.display = 'none';
+    } else if (fromChat) {
+      // Coming from chat stage update — update button text
+      const saveBtn = document.getElementById('save-profile-btn');
+      if (saveBtn) saveBtn.textContent = 'Save & Return to Chat';
+    }
+  })();
+</script>
 </body>
 </html>
