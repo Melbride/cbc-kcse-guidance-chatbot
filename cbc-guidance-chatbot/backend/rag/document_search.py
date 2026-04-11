@@ -15,27 +15,28 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")
+PINECONE_API_KEY         = os.getenv("PINECONE_API_KEY")
+PINECONE_INDEX_NAME      = os.getenv("PINECONE_INDEX_NAME")
 HUGGINGFACEHUB_API_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
-_EMBEDDINGS = None
+_EMBEDDINGS  = None
 _VECTORSTORE = None
-_LLM = None
+_LLM         = None
 
 print(f"LOADING document_search from: {__file__}", flush=True)
 
 
-class _FallbackEmbeddings:
-    """Deterministic local fallback — no network, no torch, always works."""
+# ── Embeddings ────────────────────────────────────────────────────────────────
 
+class _FallbackEmbeddings:
+    """Hash-based fallback — no network required, always works."""
     dimension = 384
 
     def embed_query(self, text: str):
         text = text or ""
         values = []
         for idx in range(self.dimension):
-            seed = f"{text}:{idx}".encode("utf-8")
+            seed   = f"{text}:{idx}".encode("utf-8")
             digest = hashlib.sha256(seed).digest()
             number = int.from_bytes(digest[:4], "big", signed=False)
             values.append((number / 2147483647.5) - 1.0)
@@ -47,11 +48,11 @@ class _FallbackEmbeddings:
 
 class _HuggingFaceAPIEmbeddings:
     """
-    Calls the HuggingFace Inference API v2 (router endpoint) to embed text.
-    Uses all-MiniLM-L6-v2 — same model as the old local version so existing
-    Pinecone vectors stay compatible. No torch, no local download.
+    HuggingFace Inference API v2 embeddings.
+    Uses all-MiniLM-L6-v2 — same model as the old local version
+    so existing Pinecone vectors stay compatible.
+    No torch, no local download.
     """
-
     dimension = 384
     MODEL_URL = (
         "https://router.huggingface.co/hf-inference/models/"
@@ -63,7 +64,7 @@ class _HuggingFaceAPIEmbeddings:
             "Authorization": f"Bearer {api_token}",
             "Content-Type": "application/json",
         }
-        print("HuggingFace API embeddings initialized (no local model).", flush=True)
+        print("HuggingFace API embeddings initialized.", flush=True)
 
     def _query(self, inputs) -> list:
         response = requests.post(
@@ -96,7 +97,7 @@ class _LLMProxy:
 
 
 embeddings = _EmbeddingsProxy()
-llm = _LLMProxy()
+llm        = _LLMProxy()
 
 
 def get_embeddings():
@@ -106,14 +107,13 @@ def get_embeddings():
 
     if HUGGINGFACEHUB_API_TOKEN:
         try:
-            instance = _HuggingFaceAPIEmbeddings(HUGGINGFACEHUB_API_TOKEN)
+            instance    = _HuggingFaceAPIEmbeddings(HUGGINGFACEHUB_API_TOKEN)
             test_result = instance.embed_query("test")
             if isinstance(test_result, list) and len(test_result) > 0:
                 _EMBEDDINGS = instance
                 print(f"HuggingFace API embeddings: OK (dim={len(test_result)})", flush=True)
                 return _EMBEDDINGS
-            else:
-                print(f"HuggingFace API returned unexpected result: {test_result}", flush=True)
+            print(f"HuggingFace API unexpected result: {test_result}", flush=True)
         except Exception as e:
             print(f"HuggingFace API embeddings failed: {e}", flush=True)
     else:
@@ -130,7 +130,7 @@ def get_vectorstore():
         return _VECTORSTORE
 
     if not PINECONE_API_KEY or not PINECONE_INDEX_NAME:
-        print("Warning: Missing Pinecone configuration.", flush=True)
+        print("Warning: Missing Pinecone config.", flush=True)
         return None
 
     try:
@@ -138,12 +138,12 @@ def get_vectorstore():
         from pinecone import Pinecone
 
         print("Connecting to Pinecone...", flush=True)
-        pc = Pinecone(api_key=PINECONE_API_KEY)
-        index = pc.Index(PINECONE_INDEX_NAME)
+        pc           = Pinecone(api_key=PINECONE_API_KEY)
+        index        = pc.Index(PINECONE_INDEX_NAME)
         _VECTORSTORE = PineconeVectorStore(index=index, embedding=get_embeddings())
         print("Pinecone vector store connected.", flush=True)
     except Exception as e:
-        print(f"Warning: Pinecone vector store unavailable: {e}", flush=True)
+        print(f"Warning: Pinecone unavailable: {e}", flush=True)
         _VECTORSTORE = None
 
     return _VECTORSTORE
@@ -156,7 +156,7 @@ def get_llm():
 
     groq_api_key = os.getenv("GROQ_API_KEY")
     if not groq_api_key:
-        print("ERROR: GROQ_API_KEY is not set. LLM will use fallback.", flush=True)
+        print("ERROR: GROQ_API_KEY not set.", flush=True)
         _LLM = _FallbackLLM()
         return _LLM
 
@@ -168,11 +168,11 @@ def get_llm():
             temperature=0.3,
             max_tokens=1000,
         )
-        test_response = _LLM.invoke("Say OK")
-        print(f"Groq LLM: OK (test={getattr(test_response, 'content', '')[:20]})", flush=True)
+        test = _LLM.invoke("Say OK")
+        print(f"Groq LLM: OK ({getattr(test, 'content', '')[:20]})", flush=True)
         return _LLM
     except Exception as e:
-        print(f"ERROR: Groq init/test failed: {e}", flush=True)
+        print(f"ERROR: Groq failed: {e}", flush=True)
         _LLM = _FallbackLLM()
         return _LLM
 
@@ -180,12 +180,11 @@ def get_llm():
 class _FallbackLLM:
     def invoke(self, prompt: str):
         return SimpleNamespace(
-            content=(
-                "I'm experiencing technical difficulties right now. "
-                "Please try again in a moment."
-            )
+            content="I'm having a technical issue right now. Please try again in a moment."
         )
 
+
+# ── Retrieval ─────────────────────────────────────────────────────────────────
 
 def retrieve_documents(query: str, k: int = 5):
     vectorstore = get_vectorstore()
@@ -194,9 +193,11 @@ def retrieve_documents(query: str, k: int = 5):
     try:
         return vectorstore.similarity_search_with_score(query, k=k)
     except Exception as e:
-        print(f"Warning: document retrieval failed: {e}", flush=True)
+        print(f"Warning: retrieval failed: {e}", flush=True)
         return []
 
+
+# ── Answer generation ─────────────────────────────────────────────────────────
 
 def generate_rag_answer(
     question: str,
@@ -205,16 +206,17 @@ def generate_rag_answer(
     query_type: str,
 ) -> str:
     """
-    Build a prompt that makes the LLM behave like a warm guidance counsellor —
-    not a question-answering machine. The bot should:
-      - Use what it knows about the user from context/history
-      - Answer the question, then naturally move the conversation forward
-      - Ask one follow-up question to deepen the guidance
-      - Never dump all information at once
+    Generate a conversational guidance answer using the LLM.
+
+    The prompt is designed so the bot behaves like a warm human counsellor:
+    - Uses what it knows about the student silently (no "according to your profile")
+    - Gives a focused answer, then asks one natural follow-up question
+    - Never dumps all CBC information at once
+    - Uses correct CBC terminology (STEM, Social Sciences, Arts and Sports Science)
+    - Understands the 3-stage journey (pre_exam, post_results, post_placement)
     """
 
     if query_type == "subject_count_query":
-        # For simple factual counts, stay concise — no follow-up needed
         prompt = f"""You are a CBC Education Guidance Assistant in Kenya.
 
 Question: {question}
@@ -222,17 +224,16 @@ Question: {question}
 {context}
 
 Instructions:
-- Answer the subject count question in ONE clear sentence
-- Do NOT explain pathways unless asked
+- Answer the subject count question in ONE clear sentence only
+- Do NOT explain pathways unless directly asked
 - Do NOT add a greeting
 
 Answer:"""
 
     else:
-        # Conversational guidance prompt — the key to natural flow
-        prompt = f"""You are a warm, knowledgeable CBC Education Guidance Counsellor helping students and parents in Kenya navigate the CBC system.
+        prompt = f"""You are a warm, knowledgeable CBC Education Guidance Counsellor helping students and parents in Kenya.
 
-You are having an ongoing conversation. Use the context below to understand who you are talking to and what has already been discussed.
+You are having an ongoing conversation. Use the context below to understand who you are talking to, where they are in their journey, and what has been discussed.
 
 --- CONTEXT ---
 {context}
@@ -240,21 +241,22 @@ You are having an ongoing conversation. Use the context below to understand who 
 
 The person just said: "{question}"
 
-Your role:
-- Respond like a human counsellor, not a search engine
-- Use what you know about the student/parent from the context (their results, pathway, interests, stage)
-- If they share personal information (e.g. "my daughter got ME2"), acknowledge it warmly and use it
+How to respond:
+- Respond like a human counsellor having a natural conversation — not like a search engine returning results
+- Use information you know about the student silently. Do NOT say "according to your profile" or "based on your data"
+- If they share personal information (grades, interests, worries), acknowledge it naturally before answering
 - Give a focused, helpful answer — do NOT list everything you know about CBC at once
-- Use the correct CBC pathway names: STEM, Social Sciences, Arts and Sports Science
-- After answering, ask ONE natural follow-up question to continue the guidance conversation
-  (e.g. "What subjects does she enjoy most?" or "Is she leaning towards any particular career?")
-- Keep your response conversational — 2 to 4 short paragraphs maximum
+- Always use the correct CBC pathway names: STEM, Social Sciences, Arts and Sports Science
+- The CBC grading scale is: EE (Exceeds Expectation), ME (Meets Expectation), AE (Approaches Expectation), BE (Below Expectation) — each with levels 1-4
+- After your answer, ask ONE natural follow-up question to keep the guidance going
+  (e.g. "What subjects does she feel strongest in?" or "Has she thought about any particular career?")
+- Keep it conversational — 2 to 3 short paragraphs at most
 - If you don't have enough information to answer well, ask a clarifying question instead of guessing
-- Never say "Based on the documents" or reference your context directly
+- If the question is about a specific grade like EE2, ME3 etc., explain clearly what it means in the CBC system
 
 Answer:"""
 
     response = get_llm().invoke(prompt)
-    answer = getattr(response, "content", "") or ""
-    answer = re.sub(r"\s+", " ", answer).strip()
+    answer   = getattr(response, "content", "") or ""
+    answer   = re.sub(r"\s+", " ", answer).strip()
     return answer
