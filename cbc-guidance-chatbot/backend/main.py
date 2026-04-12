@@ -25,6 +25,10 @@ from analytics.analytics import AnalyticsManager
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
+BASE_DIR = Path(__file__).resolve().parent
+DOCUMENT_INDEX_PATH = BASE_DIR / "document_index.json"
+UPLOADED_DOCUMENTS_DIR = BASE_DIR / "uploaded_documents"
+
 
 #initialize fastapi application
 app = FastAPI(title="CBC/KCSE Guidance Chatbot")
@@ -108,8 +112,7 @@ def query_endpoint(req: QueryRequest):
 @app.get("/documents")
 def list_documents(request: Request, page: int = 1, page_size: int = 20):
     require_admin(request)
-    index_path = Path("document_index.json")
-    if not index_path.exists():
+    if not DOCUMENT_INDEX_PATH.exists():
         return {
             "documents": [],
             "total": 0,
@@ -118,7 +121,7 @@ def list_documents(request: Request, page: int = 1, page_size: int = 20):
             "total_pages": 0,
         }
     try:
-        with open(index_path, "r", encoding="utf-8") as f:
+        with open(DOCUMENT_INDEX_PATH, "r", encoding="utf-8") as f:
             docs = json.load(f)
         docs = list(reversed(docs))
         safe_page = max(page, 1)
@@ -146,9 +149,8 @@ async def upload_document(request: Request, file: UploadFile = File(...)):
         from rag.document_loader import load_pdf, load_docx
         
         # Save uploaded file
-        upload_dir = Path("uploaded_documents")
-        upload_dir.mkdir(exist_ok=True)
-        file_path = upload_dir / file.filename
+        UPLOADED_DOCUMENTS_DIR.mkdir(exist_ok=True)
+        file_path = UPLOADED_DOCUMENTS_DIR / file.filename
         
         with open(file_path, "wb") as f:
             content = await file.read()
@@ -168,10 +170,9 @@ async def upload_document(request: Request, file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="Document is empty or unreadable")
         
         # Add to document index
-        index_path = Path("document_index.json")
         docs_metadata = []
-        if index_path.exists():
-            with open(index_path, "r", encoding="utf-8") as f:
+        if DOCUMENT_INDEX_PATH.exists():
+            with open(DOCUMENT_INDEX_PATH, "r", encoding="utf-8") as f:
                 docs_metadata = json.load(f)
         
         doc_entry = {
@@ -182,7 +183,7 @@ async def upload_document(request: Request, file: UploadFile = File(...)):
         }
         docs_metadata.append(doc_entry)
         
-        with open(index_path, "w", encoding="utf-8") as f:
+        with open(DOCUMENT_INDEX_PATH, "w", encoding="utf-8") as f:
             json.dump(docs_metadata, f, indent=2)
         
         # Ingest to Pinecone
@@ -221,11 +222,10 @@ def delete_document(doc_path: str, request: Request):
         doc_path = unquote(doc_path)
         
         # Remove from index
-        index_path = Path("document_index.json")
-        if not index_path.exists():
+        if not DOCUMENT_INDEX_PATH.exists():
             raise HTTPException(status_code=404, detail="Document not found")
         
-        with open(index_path, "r", encoding="utf-8") as f:
+        with open(DOCUMENT_INDEX_PATH, "r", encoding="utf-8") as f:
             docs_metadata = json.load(f)
         
         # Find and remove document
@@ -235,7 +235,7 @@ def delete_document(doc_path: str, request: Request):
         if len(docs_metadata) == original_count:
             raise HTTPException(status_code=404, detail="Document not found")
         
-        with open(index_path, "w", encoding="utf-8") as f:
+        with open(DOCUMENT_INDEX_PATH, "w", encoding="utf-8") as f:
             json.dump(docs_metadata, f, indent=2)
         
         # Delete physical file if it exists
@@ -341,7 +341,8 @@ def recent_questions(request: Request, limit: int = 20):
     require_admin(request)
     try:
         db = get_db()
-        with db.conn.cursor(cursor_factory=db.conn.cursor_factory) as cur:
+        db._reset_failed_transaction()
+        with db.conn.cursor() as cur:
             cur.execute("""
                 SELECT user_id, question, answer, created_at
                 FROM conversations
@@ -362,6 +363,7 @@ def recent_questions(request: Request, limit: int = 20):
                     })
             return {"questions": questions}
     except Exception as e:
+        get_db().conn.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to load recent questions: {str(e)}")
 
 

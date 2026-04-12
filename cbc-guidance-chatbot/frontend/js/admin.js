@@ -48,6 +48,20 @@ async function apiFetch(path, options = {}) {
     window.location.href = 'dashboard.html';
     throw new Error('Not admin');
   }
+  if (!res.ok) {
+    let detail = `Request failed with status ${res.status}`;
+    try {
+      const payload = await res.json();
+      detail = payload.detail || payload.message || detail;
+    } catch {
+      try {
+        detail = await res.text() || detail;
+      } catch {
+        // Ignore secondary parsing errors and keep fallback detail.
+      }
+    }
+    throw new Error(detail);
+  }
   return res;
 }
 

@@ -128,6 +128,7 @@ class AnalyticsManager:
     
     def get_query_analytics(self, days: int = 7) -> Dict:
         """Get aggregated query analytics for dashboard"""
+        self.db._reset_failed_transaction()
         try:
             with self.db.conn.cursor() as cur:
                 # Total queries by topic
@@ -171,11 +172,13 @@ class AnalyticsManager:
                     'period_days': days
                 }
         except Exception as e:
+            self.db.conn.rollback()
             print(f"Error getting query analytics: {e}")
             return {}
     
     def get_document_analytics(self) -> List[Dict]:
         """Get document usage statistics"""
+        self.db._reset_failed_transaction()
         try:
             with self.db.conn.cursor() as cur:
                 cur.execute("""
@@ -187,11 +190,13 @@ class AnalyticsManager:
                 results = cur.fetchall()
                 return [{'document_name': row[0], 'retrieval_count': row[1], 'avg_confidence_score': float(row[2]), 'last_used_at': row[3]} for row in results] if results else []
         except Exception as e:
+            self.db.conn.rollback()
             print(f"Error getting document analytics: {e}")
             return []
     
     def get_feedback_summary(self, days: int = 7) -> Dict:
         """Get feedback trends by topic"""
+        self.db._reset_failed_transaction()
         try:
             with self.db.conn.cursor() as cur:
                 cur.execute("""
@@ -212,11 +217,13 @@ class AnalyticsManager:
                 
                 return feedback_by_topic
         except Exception as e:
+            self.db.conn.rollback()
             print(f"Error getting feedback summary: {e}")
             return {}
     
     def get_knowledge_gaps(self, limit: int = 10) -> List[Dict]:
         """Get top knowledge gaps - what the bot can't answer"""
+        self.db._reset_failed_transaction()
         try:
             with self.db.conn.cursor() as cur:
                 cur.execute("""
@@ -228,12 +235,14 @@ class AnalyticsManager:
                 results = cur.fetchall()
                 return [{'topic_category': row[0], 'fallback_reason': row[1], 'count': row[2], 'suggested_document_topic': row[3], 'last_occurred_at': row[4]} for row in results] if results else []
         except Exception as e:
+            self.db.conn.rollback()
             print(f"Error getting knowledge gaps: {e}")
             return []
     
     def get_admin_audit_log(self, admin_id: Optional[str] = None, 
                            days: int = 30, limit: int = 100) -> List[Dict]:
         """Get admin action audit log"""
+        self.db._reset_failed_transaction()
         try:
             with self.db.conn.cursor() as cur:
                 if admin_id:
@@ -258,11 +267,13 @@ class AnalyticsManager:
                 results = cur.fetchall()
                 return [dict(row) for row in results] if results else []
         except Exception as e:
+            self.db.conn.rollback()
             print(f"Error getting audit log: {e}")
             return []
     
     def get_system_health(self, days: int = 7) -> Dict:
         """Get overall system health metrics"""
+        self.db._reset_failed_transaction()
         try:
             with self.db.conn.cursor() as cur:
                 cur.execute("""
@@ -287,5 +298,6 @@ class AnalyticsManager:
                     }
                 return {}
         except Exception as e:
+            self.db.conn.rollback()
             print(f"Error getting system health: {e}")
             return {}

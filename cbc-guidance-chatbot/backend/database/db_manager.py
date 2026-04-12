@@ -2,6 +2,7 @@
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor, Json
+from psycopg2.extensions import TRANSACTION_STATUS_INERROR
 from dotenv import load_dotenv
 from datetime import datetime
 from typing import Optional, List, Dict
@@ -13,27 +14,44 @@ load_dotenv()
 
 
 class DatabaseManager:
+    def _reset_failed_transaction(self):
+        """Clear aborted transactions so later requests can use the shared connection."""
+        try:
+            if self.conn and not self.conn.closed:
+                status = self.conn.get_transaction_status()
+                if status == TRANSACTION_STATUS_INERROR:
+                    self.conn.rollback()
+        except Exception as e:
+            print(f"Warning: failed to reset transaction state: {e}")
 
     def get_all_users(self):
         """Return all users for admin dashboard"""
-        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("""
-                SELECT user_id, name, email, role, active, created_at, last_active
-                FROM users
-                ORDER BY created_at DESC
-            """)
-            return cur.fetchall()
+        self._reset_failed_transaction()
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT user_id, name, email, role, active, created_at, last_active
+                    FROM users
+                    ORDER BY created_at DESC
+                """)
+                return [dict(row) for row in cur.fetchall()]
+        except Exception as e:
+            self.conn.rollback()
+            print(f"Error getting all users: {e}")
+            return []
 
     def fetch_all(self, query: str, params: tuple = ()):
         """
         Generic fetch_all method for running SELECT queries and returning all results as a list of dicts.
         Used by config_loader.py for loading counties and subjects.
         """
+        self._reset_failed_transaction()
         try:
             with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(query, params)
                 return cur.fetchall()
         except Exception as e:
+            self.conn.rollback()
             print(f"Error in fetch_all: {e}")
             return []
 
@@ -531,6 +549,7 @@ class DatabaseManager:
             return []
 
     def get_pathway_statistics(self) -> Dict:
+        self._reset_failed_transaction()
         try:
             with self.conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute("""
@@ -565,10 +584,12 @@ class DatabaseManager:
                 }
 
         except Exception as e:
+            self.conn.rollback()
             print(f"Error getting pathway statistics: {e}")
             return {}
 
     def search_schools(self, query: str, limit: int = 50) -> List[Dict]:
+        self._reset_failed_transaction()
         try:
             with self.conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 search_query = """
@@ -582,6 +603,7 @@ class DatabaseManager:
                 cursor.execute(search_query, (search_term, search_term, limit))
                 return cursor.fetchall()
         except Exception as e:
+            self.conn.rollback()
             print(f"Error searching schools: {e}")
             return []
 
@@ -595,6 +617,7 @@ class DatabaseManager:
         page: int = 1,
         page_size: int = 30,
     ) -> Dict:
+        self._reset_failed_transaction()
         try:
             safe_page = max(1, int(page or 1))
             safe_page_size = max(1, min(100, int(page_size or 30)))
@@ -673,6 +696,7 @@ class DatabaseManager:
             }
 
         except Exception as e:
+            self.conn.rollback()
             print(f"Error getting schools catalog: {e}")
             return {
                 "schools": [],
@@ -711,15 +735,29 @@ class DatabaseManager:
 
     def get_user(self, user_id: str):
         """Get user by id"""
-        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
-            return cur.fetchone()
+        self._reset_failed_transaction()
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
+                row = cur.fetchone()
+                return dict(row) if row else None
+        except Exception as e:
+            self.conn.rollback()
+            print(f"Error getting user {user_id}: {e}")
+            return None
 
     def get_user_by_email(self, email: str):
         """Get user by email"""
-        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT * FROM users WHERE email = %s", (email,))
-            return cur.fetchone()
+        self._reset_failed_transaction()
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM users WHERE email = %s", (email,))
+                row = cur.fetchone()
+                return dict(row) if row else None
+        except Exception as e:
+            self.conn.rollback()
+            print(f"Error getting user by email: {e}")
+            return None
 
     # ── Profile management ────────────────────────────────────────────────────
 
@@ -1129,15 +1167,21 @@ class DatabaseManager:
 
     def get_user_history(self, user_id: str, limit: int = 10):
         """Get user's conversation history"""
-        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("""
-                SELECT question, answer, mode, created_at
-                FROM conversations
-                WHERE user_id = %s
-                ORDER BY created_at DESC
-                LIMIT %s
-            """, (user_id, limit))
-            return cur.fetchall()
+        self._reset_failed_transaction()
+        try:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT question, answer, mode, created_at
+                    FROM conversations
+                    WHERE user_id = %s
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                """, (user_id, limit))
+                return [dict(row) for row in cur.fetchall()]
+        except Exception as e:
+            self.conn.rollback()
+            print(f"Error getting user history for {user_id}: {e}")
+            return []
 
     # ── Caching ───────────────────────────────────────────────────────────────
 
