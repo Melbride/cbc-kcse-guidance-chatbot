@@ -18,9 +18,41 @@ _db_lock = Lock()
 
 
 class DatabaseManager:
+    def _connect(self):
+        """Create a fresh PostgreSQL connection using current environment settings."""
+        database_url = os.getenv("DATABASE_URL")
+        if database_url:
+            return psycopg2.connect(
+                database_url,
+                connect_timeout=10
+            )
+
+        return psycopg2.connect(
+            host=os.getenv("DB_HOST", "localhost"),
+            database=os.getenv("DB_NAME", "cbc_chatbot"),
+            user=os.getenv("DB_USER", "postgres"),
+            password=os.getenv("DB_PASSWORD", ""),
+            port=os.getenv("DB_PORT", "5432"),
+            connect_timeout=10
+        )
+
+    def _ensure_connection(self):
+        """Reconnect if the shared connection was closed or dropped."""
+        if getattr(self, "conn", None) is None or self.conn.closed:
+            self.conn = self._connect()
+
+    def _safe_rollback(self):
+        """Rollback only when the connection is still open."""
+        try:
+            if self.conn and not self.conn.closed:
+                self.conn.rollback()
+        except Exception as e:
+            print(f"Warning: rollback skipped: {e}")
+
     def _reset_failed_transaction(self):
         """Clear aborted transactions so later requests can use the shared connection."""
         try:
+            self._ensure_connection()
             if self.conn and not self.conn.closed:
                 status = self.conn.get_transaction_status()
                 if status == TRANSACTION_STATUS_INERROR:
@@ -48,7 +80,7 @@ class DatabaseManager:
                 """)
                 return [dict(row) for row in cur.fetchall()]
         except Exception as e:
-            self.conn.rollback()
+            self._safe_rollback()
             print(f"Error getting all users: {e}")
             return []
 
@@ -63,7 +95,7 @@ class DatabaseManager:
                 cur.execute(query, params)
                 return cur.fetchall()
         except Exception as e:
-            self.conn.rollback()
+            self._safe_rollback()
             print(f"Error in fetch_all: {e}")
             return []
 
@@ -79,26 +111,7 @@ class DatabaseManager:
 
     def __init__(self):
         #initialize database connection
-        database_url = os.getenv("DATABASE_URL")
-        if database_url:
-            self.conn = psycopg2.connect(
-                database_url,
-                connect_timeout=10
-            )
-        else:
-            db_host = os.getenv("DB_HOST", "localhost")
-            db_name = os.getenv("DB_NAME", "cbc_chatbot")
-            db_user = os.getenv("DB_USER", "postgres")
-            db_password = os.getenv("DB_PASSWORD", "")
-            db_port = os.getenv("DB_PORT", "5432")
-            self.conn = psycopg2.connect(
-                host=db_host,
-                database=db_name,
-                user=db_user,
-                password=db_password,
-                port=db_port,
-                connect_timeout=10
-            )
+        self.conn = self._connect()
         self._ensure_user_columns()
         self._ensure_profile_columns()
         self._ensure_analytics_constraints()
@@ -584,7 +597,7 @@ class DatabaseManager:
                 }
 
         except Exception as e:
-            self.conn.rollback()
+            self._safe_rollback()
             print(f"Error getting pathway statistics: {e}")
             return {}
 
@@ -603,7 +616,7 @@ class DatabaseManager:
                 cursor.execute(search_query, (search_term, search_term, limit))
                 return cursor.fetchall()
         except Exception as e:
-            self.conn.rollback()
+            self._safe_rollback()
             print(f"Error searching schools: {e}")
             return []
 
@@ -696,7 +709,7 @@ class DatabaseManager:
             }
 
         except Exception as e:
-            self.conn.rollback()
+            self._safe_rollback()
             print(f"Error getting schools catalog: {e}")
             return {
                 "schools": [],
@@ -742,7 +755,7 @@ class DatabaseManager:
                 row = cur.fetchone()
                 return dict(row) if row else None
         except Exception as e:
-            self.conn.rollback()
+            self._safe_rollback()
             print(f"Error getting user {user_id}: {e}")
             return None
 
@@ -755,7 +768,7 @@ class DatabaseManager:
                 row = cur.fetchone()
                 return dict(row) if row else None
         except Exception as e:
-            self.conn.rollback()
+            self._safe_rollback()
             print(f"Error getting user by email: {e}")
             return None
 
@@ -879,28 +892,9 @@ class DatabaseManager:
                 return result
 
         except Exception as e:
-            self.conn.rollback()
+            self._safe_rollback()
             print(f"Error getting profile: {e}")
             return None
-
-
-def get_shared_db() -> DatabaseManager:
-    """Process-wide shared DatabaseManager instance."""
-    global _db_singleton
-    if _db_singleton is None:
-        with _db_lock:
-            if _db_singleton is None:
-                _db_singleton = DatabaseManager()
-    return _db_singleton
-
-
-def close_shared_db() -> None:
-    """Close and clear the process-wide shared DatabaseManager instance."""
-    global _db_singleton
-    with _db_lock:
-        if _db_singleton is not None:
-            _db_singleton.close()
-            _db_singleton = None
 
     def get_user_stage(self, user_id: str):
         """Get user's current stage from database"""
@@ -1324,3 +1318,22 @@ def close_shared_db() -> None:
                 "Social Sciences": round(social_score, 2),
                 "Arts and Sports Science": round(arts_score, 2),
             }
+
+
+def get_shared_db() -> DatabaseManager:
+    """Process-wide shared DatabaseManager instance."""
+    global _db_singleton
+    if _db_singleton is None or getattr(_db_singleton, "conn", None) is None or _db_singleton.conn.closed:
+        with _db_lock:
+            if _db_singleton is None or getattr(_db_singleton, "conn", None) is None or _db_singleton.conn.closed:
+                _db_singleton = DatabaseManager()
+    return _db_singleton
+
+
+def close_shared_db() -> None:
+    """Close and clear the process-wide shared DatabaseManager instance."""
+    global _db_singleton
+    with _db_lock:
+        if _db_singleton is not None:
+            _db_singleton.close()
+            _db_singleton = None

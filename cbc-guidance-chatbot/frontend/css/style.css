@@ -2021,13 +2021,13 @@ body.theme-dark .chat-suggestion:hover {
   background: hsl(217 71% 45% / 0.14);
 }
 
-.ix-reveal-target {
+.ix-page.ix-animate-ready .ix-reveal-target {
   opacity: 0;
   transform: translateY(18px);
   transition: opacity .5s ease, transform .5s ease;
 }
 
-.ix-reveal-target.ix-visible {
+.ix-page.ix-animate-ready .ix-reveal-target.ix-visible {
   opacity: 1;
   transform: translateY(0);
 }

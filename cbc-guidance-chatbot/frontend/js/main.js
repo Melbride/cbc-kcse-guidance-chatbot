@@ -2833,6 +2833,8 @@ function initializeIndexAnimations() {
 
   if (!landing) return;
 
+  landing.classList.add('ix-animate-ready');
+
 
 
   const targets = landing.querySelectorAll('.ix-reveal-target');
