@@ -1156,6 +1156,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+    const API_BASE = 'https://kcse-backend.onrender.com';
+
     let cachedUsers = [];
     let editingContentId = null;
     let currentQuestionFilters = { status: '', topic: '', date_from: '' };
@@ -1211,7 +1213,7 @@
     }
 
     async function fetchUsers() {
-        const data = await fetchJson('http://localhost:8000/admin/users');
+        const data = await fetchJson(`${API_BASE}/admin/users`);
         cachedUsers = Array.isArray(data.users) ? data.users : [];
         return cachedUsers;
     }
@@ -1263,7 +1265,7 @@
         const newStatus = currentStatus === 'disabled' ? 'active' : 'disabled';
         if (!confirm(`${newStatus === 'disabled' ? 'Disable' : 'Enable'} this user?`)) return;
         try {
-            await fetchJson(`http://localhost:8000/admin/user/${userId}/status`, {
+            await fetchJson(`${API_BASE}/admin/user/${userId}/status`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: newStatus })
@@ -1318,7 +1320,7 @@
         try {
             const [users, stats] = await Promise.all([
                 fetchUsers(),
-                fetchJson('http://localhost:8000/admin/stats')
+                fetchJson(`${API_BASE}/admin/stats`)
             ]);
             document.getElementById('total-users').textContent = stats.total_users ?? users.length;
             document.getElementById('feedback-count').textContent = stats.feedback_count ?? 0;
@@ -1394,7 +1396,7 @@
                 content: document.getElementById('content-body').value.trim(),
                 status: document.getElementById('content-status').value
             };
-            const endpoint = editingContentId ? `http://localhost:8000/admin/content/${editingContentId}` : 'http://localhost:8000/admin/content';
+            const endpoint = editingContentId ? `${API_BASE}/admin/content/${editingContentId}` : `${API_BASE}/admin/content`;
             const method = editingContentId ? 'PUT' : 'POST';
             try {
                 await fetchJson(endpoint, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
@@ -1408,7 +1410,7 @@
 
     async function loadSupportContent() {
         try {
-            const data = await fetchJson('http://localhost:8000/admin/content');
+            const data = await fetchJson(`${API_BASE}/admin/content`);
             const items = Array.isArray(data.items) ? data.items : [];
             document.getElementById('support-content-list').innerHTML = items.length
                 ? items.map(item => `
@@ -1437,11 +1439,11 @@
             if (currentQuestionFilters.status) queryParams.set('status', currentQuestionFilters.status);
             if (currentQuestionFilters.topic) queryParams.set('topic', currentQuestionFilters.topic);
             if (currentQuestionFilters.date_from) queryParams.set('date_from', currentQuestionFilters.date_from);
-            const qUrl = queryParams.toString() ? `http://localhost:8000/admin/questions?${queryParams}` : 'http://localhost:8000/admin/questions';
+            const qUrl = queryParams.toString() ? `${API_BASE}/admin/questions?${queryParams}` : `${API_BASE}/admin/questions`;
 
             const [stats, analytics, questionData] = await Promise.all([
-                fetchJson('http://localhost:8000/admin/stats'),
-                fetchJson('http://localhost:8000/admin/analytics'),
+                fetchJson(`${API_BASE}/admin/stats`),
+                fetchJson(`${API_BASE}/admin/analytics`),
                 fetchJson(qUrl)
             ]);
 
@@ -1502,8 +1504,8 @@
     async function loadCommunicationsData() {
         try {
             const [feedbackData, announcementData] = await Promise.all([
-                fetchJson('http://localhost:8000/admin/feedback'),
-                fetchJson('http://localhost:8000/admin/announcements')
+                fetchJson(`${API_BASE}/admin/feedback`),
+                fetchJson(`${API_BASE}/admin/announcements`)
             ]);
             const feedback = Array.isArray(feedbackData.feedback) ? feedbackData.feedback : [];
             const announcements = Array.isArray(announcementData.announcements) ? announcementData.announcements : [];
@@ -1539,7 +1541,7 @@
             if (currentQuestionFilters.status) queryParams.set('status', currentQuestionFilters.status);
             if (currentQuestionFilters.topic) queryParams.set('topic', currentQuestionFilters.topic);
             if (currentQuestionFilters.date_from) queryParams.set('date_from', currentQuestionFilters.date_from);
-            const url = `http://localhost:8000/admin/questions/export${queryParams.toString() ? '?'+queryParams : ''}`;
+            const url = `${API_BASE}/admin/questions/export${queryParams.toString() ? '?'+queryParams : ''}`;
             const response = await fetch(url, { headers: getAuthHeaders() });
             const csv = await response.text();
             if (!response.ok) throw new Error(csv || 'Export failed');
@@ -1555,7 +1557,7 @@
 
     window.markQuestionReviewed = async function(itemId, reviewed) {
         try {
-            await fetchJson(`http://localhost:8000/admin/questions/${itemId}/review`, {
+            await fetchJson(`${API_BASE}/admin/questions/${itemId}/review`, {
                 method: 'PATCH',
                 headers: {'Content-Type':'application/json'},
                 body: JSON.stringify({ reviewed })
@@ -1580,7 +1582,7 @@
     window.deleteUser = async function(userId) {
         if (!confirm('Delete this user? This cannot be undone.')) return;
         try {
-            const response = await fetch(`http://localhost:8000/admin/user/${userId}`, { method: 'DELETE', headers: getAuthHeaders() });
+            const response = await fetch(`${API_BASE}/admin/user/${userId}`, { method: 'DELETE', headers: getAuthHeaders() });
             if (response.ok) { await loadUsersData(); await loadDashboardData(); }
             else alert('Error deleting user.');
         } catch { alert('Error deleting user.'); }
@@ -1588,13 +1590,13 @@
 
     window.deleteSupportContent = async function(itemId) {
         if (!confirm('Delete this content item?')) return;
-        try { await fetchJson(`http://localhost:8000/admin/content/${itemId}`, { method: 'DELETE' }); await loadSupportContent(); }
+        try { await fetchJson(`${API_BASE}/admin/content/${itemId}`, { method: 'DELETE' }); await loadSupportContent(); }
         catch (err) { alert(err.message); }
     };
 
     window.editSupportContent = async function(itemId) {
         try {
-            const data = await fetchJson('http://localhost:8000/admin/content');
+            const data = await fetchJson(`${API_BASE}/admin/content`);
             const item = (Array.isArray(data.items) ? data.items : []).find(e => e.id === itemId);
             if (!item) { alert('Item not found.'); return; }
             editingContentId = item.id;
@@ -1637,7 +1639,7 @@
             e.preventDefault();
             const title = document.getElementById('announcement-title').value.trim();
             const message = document.getElementById('announcement-message').value.trim();
-            fetchJson('http://localhost:8000/admin/announcements', {
+            fetchJson(`${API_BASE}/admin/announcements`, {
                 method: 'POST',
                 headers: {'Content-Type':'application/json'},
                 body: JSON.stringify({ title, message })

@@ -79,6 +79,8 @@
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        const API_BASE = 'https://kcse-backend.onrender.com';
+
         const adminToken = localStorage.getItem('adminToken');
         const adminUser = localStorage.getItem('adminUser');
         if (adminToken && adminUser) {
@@ -98,7 +100,7 @@
             try {
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Signing in...';
-                const response = await fetch('http://localhost:8000/admin/login', {
+                const response = await fetch(`${API_BASE}/admin/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, password })
@@ -116,7 +118,7 @@
                 }
             } catch (error) {
                 msgDiv.classList.add('text-danger');
-                msgDiv.textContent = 'Cannot reach the admin backend on http://localhost:8000.';
+                msgDiv.textContent = `Cannot reach the admin backend on ${API_BASE}.`;
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Admin Login';
