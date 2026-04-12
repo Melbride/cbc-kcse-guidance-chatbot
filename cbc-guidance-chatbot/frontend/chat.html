@@ -21,6 +21,27 @@
         <h2>CBC Guidance Assistant</h2>
         <p>Powered by AI · Answers about CBC pathways, subjects &amp; schools</p>
       </div>
+      <!-- New Chat button — clears current session, history stays in DB -->
+      <button
+        onclick="newChat()"
+        title="Start a new conversation"
+        style="
+          margin-left: auto;
+          background: transparent;
+          border: 1px solid rgba(255,255,255,0.3);
+          color: inherit;
+          border-radius: 8px;
+          padding: 6px 14px;
+          font-size: 13px;
+          cursor: pointer;
+          white-space: nowrap;
+          opacity: 0.8;
+        "
+        onmouseover="this.style.opacity='1'"
+        onmouseout="this.style.opacity='0.8'"
+      >
+        + New Chat
+      </button>
     </div>
     <div class="chat-messages" id="chat-box"></div>
     <div id="guest-chat-hint" style="text-align:center; font-size:13px; color:#888; padding: 4px 0;"></div>
@@ -33,5 +54,18 @@
   </div>
 </div>
 <script src="/cbc-guidance-chatbot/frontend/js/main.js"></script>
+<script>
+  function newChat() {
+    // Clear current session messages only — DB history is preserved
+    if (typeof chatMessages !== 'undefined') {
+      chatMessages = [];
+    }
+    if (typeof renderChat === 'function') {
+      renderChat();
+    }
+    const input = document.getElementById('chat-input');
+    if (input) input.focus();
+  }
+</script>
 </body>
 </html>
