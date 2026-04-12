@@ -3,756 +3,366 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Dashboard - CBC Guidance Chatbot</title>
+  <title>Admin Dashboard — CBC Guide</title>
   <link rel="stylesheet" href="/cbc-guidance-chatbot/frontend/css/style.css">
   <link rel="stylesheet" href="/cbc-guidance-chatbot/frontend/css/theme.css">
   <script src="/cbc-guidance-chatbot/frontend/js/theme.js" defer></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
   <style>
-    :root {
-      --admin-soft: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-      --admin-border: rgba(148, 163, 184, 0.22);
-      --admin-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
-      --admin-shadow-sm: 0 10px 24px rgba(15, 23, 42, 0.06);
-      --admin-radius: 22px;
-    }
+    body { margin: 0; background: linear-gradient(180deg, #f8fafc 0%, #eef5f8 100%); min-height: 100vh; }
 
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background:
-        radial-gradient(640px 280px at 10% 8%, rgba(30, 58, 138, 0.08), transparent 72%),
-        radial-gradient(700px 320px at 92% 18%, rgba(15, 118, 110, 0.10), transparent 74%),
-        linear-gradient(180deg, #f8fafc 0%, #eef5f8 100%);
-    }
-
-    .admin-shell {
-      max-width: 1240px;
-      margin: 0 auto;
-      padding: 18px;
-    }
+    .admin-shell { max-width: 1240px; margin: 0 auto; padding: 18px; }
 
     .admin-topbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-      background: rgba(255,255,255,0.82);
-      border: 1px solid rgba(226, 232, 240, 0.92);
-      border-radius: 18px;
-      padding: 14px 16px;
-      box-shadow: var(--admin-shadow-sm);
-      margin-bottom: 12px;
-      backdrop-filter: blur(10px);
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 12px; flex-wrap: wrap;
+      background: rgba(255,255,255,0.9); border: 1px solid #e2e8f0;
+      border-radius: 16px; padding: 14px 20px;
+      box-shadow: 0 4px 20px rgba(15,23,42,0.06); margin-bottom: 16px;
     }
-
-    .admin-title h1 {
-      margin: 0 0 2px;
-      font-size: 22px;
-      line-height: 1.1;
-      font-weight: 800;
-      color: #0f172a;
-    }
-
-    .admin-title p {
-      display: none;
-    }
-
+    .admin-topbar h1 { margin: 0; font-size: 20px; font-weight: 800; color: #0f172a; }
+    .admin-topbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .admin-user-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 14px;
-      border-radius: 999px;
-      background: #f8fafc;
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      color: #475569;
-      font-size: 13px;
-      font-weight: 600;
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 14px; border-radius: 999px;
+      background: #f1f5f9; border: 1px solid #e2e8f0;
+      color: #475569; font-size: 13px; font-weight: 600;
     }
-
-    .admin-user-pill strong {
-      color: #0f172a;
+    .btn-logout {
+      padding: 8px 16px; border-radius: 10px; border: 1px solid #fecaca;
+      background: #fff5f5; color: #b91c1c; font-size: 13px; font-weight: 700;
+      cursor: pointer;
     }
-
-    .admin-toolbar {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      gap: 12px;
-      margin-bottom: 14px;
-    }
+    .btn-logout:hover { background: #fee2e2; }
 
     .admin-nav {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      padding: 10px;
-      background: rgba(255,255,255,0.75);
-      border: 1px solid rgba(226, 232, 240, 0.92);
-      border-radius: 20px;
-      backdrop-filter: blur(10px);
-      box-shadow: var(--admin-shadow-sm);
+      display: flex; flex-wrap: wrap; gap: 8px;
+      padding: 10px; background: rgba(255,255,255,0.85);
+      border: 1px solid #e2e8f0; border-radius: 16px;
+      margin-bottom: 16px; box-shadow: 0 4px 12px rgba(15,23,42,0.04);
     }
-
     .admin-nav button {
-      display: inline-flex;
-      align-items: center;
-      gap: 9px;
-      padding: 10px 16px;
-      border: 1px solid transparent;
-      background: transparent;
-      border-radius: 14px;
-      cursor: pointer;
-      color: #475569;
-      font-size: 13px;
-      font-weight: 700;
-      transition: all 0.2s ease;
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 9px 16px; border: 1px solid transparent;
+      background: transparent; border-radius: 12px;
+      cursor: pointer; color: #475569; font-size: 13px; font-weight: 700;
+      transition: all 0.18s;
     }
-
-    .admin-nav button:hover {
-      color: #0f172a;
-      background: rgba(226, 232, 240, 0.78);
-      border-color: rgba(148, 163, 184, 0.18);
-    }
-
+    .admin-nav button:hover { background: #f1f5f9; color: #0f172a; }
     .admin-nav button.active {
-      background: linear-gradient(135deg, #1e3a8a 0%, #0f766e 100%);
-      color: #fff;
-      box-shadow: 0 10px 20px rgba(30, 58, 138, 0.16);
+      background: linear-gradient(135deg, #1e3a8a, #0f766e);
+      color: #fff; box-shadow: 0 4px 12px rgba(30,58,138,0.18);
     }
 
-    .admin-section {
-      display: none;
-      background: var(--admin-soft);
-      border: 1px solid var(--admin-border);
-      border-radius: 20px;
-      box-shadow: var(--admin-shadow);
-      padding: 20px;
-      overflow: hidden;
+    .admin-section { display: none; }
+    .admin-section.active { display: block; }
+
+    .section-card {
+      background: #fff; border: 1px solid #e2e8f0;
+      border-radius: 18px; padding: 20px;
+      box-shadow: 0 4px 20px rgba(15,23,42,0.05); margin-bottom: 16px;
+    }
+    .section-card h2 {
+      margin: 0 0 16px; font-size: 17px; font-weight: 800;
+      color: #0f172a; display: flex; align-items: center; gap: 8px;
     }
 
-    .admin-section.active {
-      display: block;
+    /* Metrics */
+    .metrics-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px;
     }
-
-    .section-heading {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-      margin-bottom: 14px;
+    .metric-card {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 14px;
+      padding: 16px; box-shadow: 0 4px 12px rgba(15,23,42,0.04);
+      border-left: 4px solid #1e3a8a;
     }
+    .metric-value { font-size: 28px; font-weight: 800; color: #0f172a; }
+    .metric-label { font-size: 12px; color: #64748b; font-weight: 600; margin-top: 4px; }
 
-    .section-heading h2 {
-      margin: 0;
-      font-size: 20px;
-      color: #0f172a;
-      font-weight: 800;
-    }
-
-    .section-heading p {
-      display: none;
-    }
-
-    .section-chip {
-      display: none;
-      align-items: center;
-      gap: 8px;
-      padding: 9px 14px;
-      background: #e0f2fe;
-      color: #0f766e;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .upload-section,
-    .analytics-banner {
-      background: #f8fbff;
-      border: 1px solid rgba(148, 163, 184, 0.20);
-      border-radius: 16px;
-      padding: 16px;
-      margin-bottom: 14px;
-    }
-
-    .upload-section {
-      background:
-        linear-gradient(180deg, rgba(239,246,255,0.96) 0%, rgba(248,250,252,0.98) 100%);
-      border-style: dashed;
-      border-width: 2px;
-    }
-
-    .upload-section h3,
-    .analytics-banner h3 {
-      margin: 0 0 10px;
-      color: #0f172a;
-      font-size: 16px;
-      font-weight: 800;
-    }
-
-    .upload-section h3 {
-      display: none;
-    }
-
-    #document-upload-form {
-      display: flex;
-      gap: 14px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    #document-upload-input {
-      flex: 1 1 320px;
-      min-height: 48px;
-      padding: 11px 14px;
-      border: 1px solid rgba(148, 163, 184, 0.28);
-      border-radius: 14px;
-      background: #fff;
-    }
-
-    #document-upload-form button,
-    .pagination-controls button,
-    .btn-small {
-      border-radius: 12px;
-      font-weight: 700;
-      transition: all 0.18s ease;
-    }
-
-    #document-upload-form button {
-      padding: 12px 18px;
-      border: none;
-      background: linear-gradient(135deg, #0f766e 0%, #0f9a8a 100%);
-      color: #fff;
-      box-shadow: 0 12px 22px rgba(15, 118, 110, 0.20);
-    }
-
-    #document-upload-form button:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 16px 26px rgba(15, 118, 110, 0.24);
-    }
-
-    #document-upload-form button:disabled {
-      background: #cbd5e1;
-      box-shadow: none;
-      cursor: not-allowed;
-    }
-
-    .table-meta {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin: 0 0 10px;
-    }
-
-    .table-meta .text-muted {
-      color: #64748b;
-      font-size: 13px;
-      font-weight: 600;
-    }
-
-    .pagination-controls {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .pagination-controls button {
-      padding: 9px 14px;
-      border: 1px solid rgba(148, 163, 184, 0.28);
-      background: #fff;
-      color: #0f172a;
-      box-shadow: 0 4px 10px rgba(15, 23, 42, 0.04);
-    }
-
-    .pagination-controls button:hover:not(:disabled) {
-      border-color: rgba(30, 58, 138, 0.30);
-      background: #eff6ff;
-      color: #1e3a8a;
-    }
-
-    .pagination-controls button:disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
-      box-shadow: none;
-    }
-
-    .admin-table {
-      width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      overflow: hidden;
-      border: 1px solid rgba(226, 232, 240, 0.92);
-      border-radius: 18px;
-      background: #fff;
-      box-shadow: 0 12px 26px rgba(15, 23, 42, 0.04);
-    }
-
+    /* Table */
     .table-shell {
-      border: 1px solid rgba(226, 232, 240, 0.92);
-      border-radius: 18px;
-      overflow: auto;
-      max-height: 430px;
-      background: #fff;
-      box-shadow: 0 12px 26px rgba(15, 23, 42, 0.04);
+      border: 1px solid #e2e8f0; border-radius: 14px;
+      overflow: auto; max-height: 440px; background: #fff;
     }
-
-    .admin-table th,
-    .admin-table td {
-      padding: 12px 14px;
-      text-align: left;
-      border-bottom: 1px solid rgba(226, 232, 240, 0.75);
-      vertical-align: top;
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      background: #f8fafc; color: #334155; font-size: 11px;
+      font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+      padding: 12px 14px; border-bottom: 1px solid #e2e8f0;
+      position: sticky; top: 0; z-index: 1;
     }
-
-    .admin-table th {
-      background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
-      color: #334155;
-      font-size: 12px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      position: sticky;
-      top: 0;
-      z-index: 1;
-    }
-
-    .admin-table tr:last-child td {
-      border-bottom: none;
-    }
-
-    .admin-table tr:hover td {
-      background: rgba(248, 250, 252, 0.76);
-    }
-
-    .admin-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .btn-small {
-      padding: 7px 11px;
-      border: 1px solid rgba(148, 163, 184, 0.24);
-      background: #fff;
-      color: #0f172a;
-      cursor: pointer;
-      font-size: 12px;
-    }
-
-    .btn-small:hover {
-      background: #f8fafc;
-      border-color: rgba(30, 58, 138, 0.18);
-    }
-
-    .btn-small.btn-danger {
-      color: #b91c1c;
-      border-color: rgba(239, 68, 68, 0.24);
-      background: #fff5f5;
-    }
-
-    .btn-small.btn-danger:hover {
-      background: #fee2e2;
-    }
+    td { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #334155; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fafc; }
 
     .badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 6px 10px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: 0.02em;
-      white-space: nowrap;
+      display: inline-flex; padding: 4px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 800; white-space: nowrap;
     }
+    .badge-admin { background: #dbeafe; color: #1d4ed8; }
+    .badge-student { background: #ecfeff; color: #0f766e; }
+    .badge-active { background: #ecfdf5; color: #047857; }
+    .badge-inactive { background: #fef2f2; color: #b91c1c; }
 
-    .badge-role-admin {
-      background: #dbeafe;
-      color: #1d4ed8;
+    .btn-sm {
+      padding: 5px 10px; border-radius: 8px; border: 1px solid #e2e8f0;
+      background: #fff; color: #334155; font-size: 12px; font-weight: 700;
+      cursor: pointer; transition: all 0.15s;
     }
+    .btn-sm:hover { background: #f1f5f9; }
+    .btn-danger { border-color: #fecaca; background: #fff5f5; color: #b91c1c; }
+    .btn-danger:hover { background: #fee2e2; }
 
-    .badge-role-student {
-      background: #ecfeff;
-      color: #0f766e;
+    /* Upload */
+    .upload-zone {
+      border: 2px dashed #cbd5e1; border-radius: 14px;
+      padding: 20px; background: #f8fafc; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
     }
-
-    .badge-status-active {
-      background: #ecfdf5;
-      color: #047857;
+    .upload-zone input[type=file] {
+      flex: 1 1 280px; padding: 10px; border: 1px solid #e2e8f0;
+      border-radius: 10px; background: #fff; font-size: 13px;
     }
-
-    .badge-status-inactive {
-      background: #fef2f2;
-      color: #b91c1c;
+    .btn-upload {
+      padding: 10px 20px; border: none; border-radius: 10px;
+      background: linear-gradient(135deg, #0f766e, #0f9a8a);
+      color: #fff; font-weight: 700; font-size: 13px; cursor: pointer;
     }
+    .btn-upload:disabled { background: #cbd5e1; cursor: not-allowed; }
 
-    .metrics-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 12px;
-      margin-bottom: 14px;
+    /* Pagination */
+    .pagination {
+      display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap;
     }
-
-    .metric-card {
-      position: relative;
-      overflow: hidden;
-      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-      border: 1px solid rgba(226, 232, 240, 0.94);
-      border-radius: 16px;
-      padding: 16px;
-      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+    .pagination button {
+      padding: 7px 14px; border: 1px solid #e2e8f0; border-radius: 8px;
+      background: #fff; font-size: 12px; font-weight: 700; cursor: pointer;
     }
+    .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .pagination span { font-size: 13px; color: #64748b; }
 
-    .metric-card::before {
-      content: "";
-      position: absolute;
-      inset: 0 auto 0 0;
-      width: 5px;
-      background: linear-gradient(180deg, #1e3a8a 0%, #0f766e 100%);
+    /* Charts */
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    .chart-box {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 14px;
+      padding: 16px; min-height: 240px;
     }
+    .chart-box h3 { margin: 0 0 12px; font-size: 14px; font-weight: 700; color: #334155; }
 
-    .metric-card .metric-value {
-      font-size: 24px;
-      line-height: 1;
-      font-weight: 800;
-      color: #0f172a;
+    /* Empty state */
+    .empty { padding: 24px; text-align: center; color: #94a3b8; font-size: 13px; }
+
+    /* Recent questions */
+    .question-row { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; }
+    .question-row:last-child { border-bottom: none; }
+    .question-text { font-size: 13px; color: #0f172a; font-weight: 600; margin-bottom: 4px; }
+    .question-answer { font-size: 12px; color: #64748b; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 600px; }
+    .question-meta { font-size: 11px; color: #94a3b8; }
+
+    @media (max-width: 900px) {
+      .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+      .charts-grid { grid-template-columns: 1fr; }
     }
-
-    .metric-card .metric-label {
-      margin-top: 7px;
-      color: #64748b;
-      font-size: 12px;
-      font-weight: 600;
-    }
-
-    .analytics-banner {
-      display: none;
-    }
-
-    .analytics-block {
-      margin-top: 18px;
-    }
-
-    .analytics-block h3 {
-      margin: 0 0 10px;
-      color: #0f172a;
-      font-size: 16px;
-      font-weight: 800;
-    }
-
-    .charts-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-      margin-bottom: 12px;
-    }
-
-    .chart-container {
-      background: #fff;
-      border: 1px solid rgba(226, 232, 240, 0.94);
-      border-radius: 16px;
-      box-shadow: 0 14px 28px rgba(15, 23, 42, 0.05);
-      padding: 14px;
-      min-height: 250px;
-      position: relative;
-    }
-
-    .feedback-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 16px;
-    }
-
-    .feedback-card {
-      background: #fff;
-      border: 1px solid rgba(226, 232, 240, 0.92);
-      border-radius: 18px;
-      padding: 14px;
-      box-shadow: 0 12px 26px rgba(15, 23, 42, 0.05);
-    }
-
-    .feedback-card h4 {
-      margin: 0 0 12px;
-      color: #0f172a;
-      font-size: 16px;
-      font-weight: 800;
-    }
-
-    .empty-state {
-      padding: 16px;
-      border: 1px dashed rgba(148, 163, 184, 0.30);
-      border-radius: 16px;
-      background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
-      color: #64748b;
-      font-size: 13px;
-      font-weight: 600;
-    }
-
-    .feedback-stat {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 10px 0;
-      border-bottom: 1px solid rgba(226, 232, 240, 0.7);
-      color: #475569;
-      font-size: 13px;
-    }
-
-    .feedback-stat:last-child {
-      border-bottom: none;
-      padding-bottom: 0;
-    }
-
-    .text-muted {
-      color: #64748b;
-    }
-
-    @media (max-width: 1100px) {
-      .metrics-grid,
-      .charts-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-    }
-
-    @media (max-width: 768px) {
-      .admin-shell {
-        padding: 16px;
-      }
-
-      .admin-topbar {
-        padding: 12px 14px;
-      }
-
-      .admin-section {
-        padding: 16px;
-        border-radius: 18px;
-      }
-
-      .metrics-grid,
-      .charts-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .admin-nav {
-        gap: 8px;
-      }
-
-      .admin-nav button {
-        width: 100%;
-        justify-content: flex-start;
-      }
-
-      .admin-table {
-        display: block;
-        overflow-x: auto;
-      }
-
-      .chart-container {
-        min-height: 220px;
-      }
-
-      .table-shell {
-        max-height: none;
-      }
+    @media (max-width: 600px) {
+      .metrics-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
-  <div class="admin-shell">
-    <header class="admin-topbar">
-      <div class="admin-title">
-        <h1>Admin Dashboard</h1>
-      </div>
+<div class="admin-shell">
+
+  <!-- Top bar -->
+  <header class="admin-topbar">
+    <h1><i class="bi bi-shield-check"></i> CBC Admin Dashboard</h1>
+    <div class="admin-topbar-right">
       <div class="admin-user-pill">
         <i class="bi bi-person-circle"></i>
         <span>Signed in as <strong id="admin-current-user">Admin</strong></span>
       </div>
-    </header>
+      <button class="btn-logout" onclick="adminLogout()"><i class="bi bi-box-arrow-right"></i> Logout</button>
+    </div>
+  </header>
 
-    <div class="admin-toolbar">
-      <nav class="admin-nav" aria-label="Admin sections">
-        <button onclick="showSection(event, 'users')" data-section="users" class="active"><i class="bi bi-people"></i> Users</button>
-        <button onclick="showSection(event, 'schools')" data-section="schools"><i class="bi bi-building"></i> Schools</button>
-        <button onclick="showSection(event, 'documents')" data-section="documents"><i class="bi bi-file-earmark-pdf"></i> Documents</button>
-        <button onclick="showSection(event, 'analytics')" data-section="analytics"><i class="bi bi-bar-chart"></i> Analytics</button>
-      </nav>
+  <!-- Nav -->
+  <nav class="admin-nav">
+    <button onclick="showSection('overview')" data-section="overview" class="active">
+      <i class="bi bi-speedometer2"></i> Overview
+    </button>
+    <button onclick="showSection('questions')" data-section="questions">
+      <i class="bi bi-chat-dots"></i> Recent Questions
+    </button>
+    <button onclick="showSection('users')" data-section="users">
+      <i class="bi bi-people"></i> Users
+    </button>
+    <button onclick="showSection('schools')" data-section="schools">
+      <i class="bi bi-building"></i> Schools
+    </button>
+    <button onclick="showSection('documents')" data-section="documents">
+      <i class="bi bi-file-earmark-text"></i> Knowledge Base
+    </button>
+    <button onclick="showSection('analytics')" data-section="analytics">
+      <i class="bi bi-bar-chart"></i> Analytics
+    </button>
+  </nav>
+
+  <!-- OVERVIEW -->
+  <section id="section-overview" class="admin-section active">
+    <div class="metrics-grid" id="overview-metrics">
+      <div class="metric-card"><div class="metric-value" id="m-users">—</div><div class="metric-label">Total Users</div></div>
+      <div class="metric-card"><div class="metric-value" id="m-queries">—</div><div class="metric-label">Queries (7 days)</div></div>
+      <div class="metric-card"><div class="metric-value" id="m-success">—</div><div class="metric-label">Success Rate</div></div>
+      <div class="metric-card"><div class="metric-value" id="m-docs">—</div><div class="metric-label">Documents Indexed</div></div>
+    </div>
+    <div class="section-card">
+      <h2><i class="bi bi-info-circle"></i> About This System</h2>
+      <p style="color:#475569; font-size:14px; margin:0; line-height:1.7;">
+        This is the CBC/KCSE Guidance Chatbot admin panel. From here you can:
+        manage user accounts, view recent student questions, browse the school catalog,
+        upload new curriculum documents to the AI knowledge base, and monitor system analytics.
+      </p>
+    </div>
+  </section>
+
+  <!-- RECENT QUESTIONS -->
+  <section id="section-questions" class="admin-section">
+    <div class="section-card">
+      <h2><i class="bi bi-chat-dots-fill"></i> Recent Student Questions</h2>
+      <p style="color:#64748b; font-size:13px; margin: -8px 0 16px;">
+        Questions asked by students in the past. Helps identify what students need most.
+      </p>
+      <div id="questions-list" class="table-shell">
+        <div class="empty">Loading questions...</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- USERS -->
+  <section id="section-users" class="admin-section">
+    <div class="section-card">
+      <h2><i class="bi bi-people-fill"></i> User Management</h2>
+      <div class="table-shell">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="users-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCHOOLS -->
+  <section id="section-schools" class="admin-section">
+    <div class="section-card">
+      <h2><i class="bi bi-building"></i> Schools Catalog</h2>
+      <p style="color:#64748b; font-size:13px; margin: -8px 0 12px;">
+        All senior schools in the database. These are shown to students when they ask about schools.
+      </p>
+      <div id="schools-summary" style="font-size:13px; color:#64748b; margin-bottom:10px;"></div>
+      <div class="table-shell">
+        <table>
+          <thead>
+            <tr><th>School Name</th><th>County</th><th>Type</th><th>Gender</th><th>Pathways</th></tr>
+          </thead>
+          <tbody id="schools-tbody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="schools-pagination"></div>
+    </div>
+  </section>
+
+  <!-- KNOWLEDGE BASE / DOCUMENTS -->
+  <section id="section-documents" class="admin-section">
+    <div class="section-card">
+      <h2><i class="bi bi-cloud-arrow-up"></i> Upload CBC Document</h2>
+      <p style="color:#64748b; font-size:13px; margin: -8px 0 14px;">
+        Upload PDF or DOCX files to add them to the AI's knowledge base (Pinecone).
+        The chatbot will use these documents when answering student questions.
+      </p>
+      <div class="upload-zone">
+        <input type="file" id="upload-input" accept=".pdf,.docx">
+        <button class="btn-upload" id="upload-btn" onclick="uploadDocument()">
+          <i class="bi bi-upload"></i> Upload
+        </button>
+        <span style="font-size:12px; color:#94a3b8;">PDF or DOCX only</span>
+      </div>
+    </div>
+    <div class="section-card">
+      <h2><i class="bi bi-book"></i> Indexed Documents</h2>
+      <div id="docs-summary" style="font-size:13px; color:#64748b; margin-bottom:10px;"></div>
+      <div class="table-shell">
+        <table>
+          <thead><tr><th>Title</th><th>Type</th><th>Uploaded</th><th>Action</th></tr></thead>
+          <tbody id="docs-tbody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="docs-pagination"></div>
+    </div>
+  </section>
+
+  <!-- ANALYTICS -->
+  <section id="section-analytics" class="admin-section">
+    <div class="section-card">
+      <h2><i class="bi bi-heart-pulse"></i> System Health (Last 7 Days)</h2>
+      <div class="metrics-grid" id="health-metrics"></div>
     </div>
 
-    <section id="admin-users" class="admin-section active">
-      <div class="section-heading">
-        <div>
-          <h2><i class="bi bi-people-fill"></i> Users Management</h2>
+    <div class="section-card">
+      <h2><i class="bi bi-graph-up"></i> Query Performance by Topic</h2>
+      <div class="charts-grid">
+        <div class="chart-box">
+          <h3>Query Volume by Topic</h3>
+          <canvas id="chart-queries"></canvas>
         </div>
-        <div class="section-chip"><i class="bi bi-person-badge"></i> Admin tools</div>
+        <div class="chart-box">
+          <h3>Success Rate by Topic</h3>
+          <canvas id="chart-success"></canvas>
+        </div>
       </div>
       <div class="table-shell">
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Role</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="users-table-body"></tbody>
+        <table>
+          <thead><tr><th>Topic</th><th>Queries</th><th>Avg Confidence</th><th>Success Rate</th></tr></thead>
+          <tbody id="query-stats-tbody"></tbody>
         </table>
       </div>
-    </section>
+    </div>
 
-    <section id="admin-schools" class="admin-section">
-      <div class="section-heading">
-        <div>
-          <h2><i class="bi bi-building"></i> Schools Catalog</h2>
-        </div>
-        <div class="section-chip"><i class="bi bi-database"></i> PostgreSQL data</div>
-      </div>
-      <div class="table-meta">
-        <div id="schools-summary" class="text-muted">Loading schools...</div>
-        <div id="schools-pagination" class="pagination-controls"></div>
+    <div class="section-card">
+      <h2><i class="bi bi-book-half"></i> Most Used Documents</h2>
+      <div class="chart-box" style="margin-bottom:12px;">
+        <canvas id="chart-docs"></canvas>
       </div>
       <div class="table-shell">
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>County</th>
-              <th>Pathways</th>
-              <th>Type</th>
-              <th>Gender</th>
-            </tr>
-          </thead>
-          <tbody id="schools-table-body"></tbody>
+        <table>
+          <thead><tr><th>Document</th><th>Times Retrieved</th><th>Avg Confidence</th></tr></thead>
+          <tbody id="doc-stats-tbody"></tbody>
         </table>
       </div>
-    </section>
+    </div>
 
-    <section id="admin-documents" class="admin-section">
-      <div class="section-heading">
-        <div>
-          <h2><i class="bi bi-file-earmark-text"></i> Knowledge Base Management</h2>
-        </div>
-        <div class="section-chip"><i class="bi bi-cloud-arrow-up"></i> Pinecone content</div>
+    <div class="section-card">
+      <h2><i class="bi bi-exclamation-circle"></i> Knowledge Gaps</h2>
+      <p style="color:#64748b; font-size:13px; margin: -8px 0 12px;">
+        Questions students asked that the system couldn't answer well. Use these to know what documents to upload.
+      </p>
+      <div class="table-shell">
+        <table>
+          <thead><tr><th>Topic</th><th>Reason</th><th>Times</th><th>Suggested Document</th></tr></thead>
+          <tbody id="gaps-tbody"></tbody>
+        </table>
       </div>
+    </div>
 
-      <div class="upload-section">
-        <form id="document-upload-form">
-          <input type="file" id="document-upload-input" name="file" accept=".pdf,.docx" required />
-          <button type="submit">Upload Document</button>
-        </form>
-        <p class="text-muted" style="font-size: 12px; margin: 12px 0 0;">Supported formats: PDF, DOCX</p>
-      </div>
+    <div class="section-card">
+      <h2><i class="bi bi-hand-thumbs-up"></i> Student Feedback</h2>
+      <div id="feedback-container"></div>
+    </div>
+  </section>
 
-      <div class="analytics-block">
-        <h3><i class="bi bi-book"></i> Indexed Documents</h3>
-        <div class="table-meta">
-          <div id="documents-summary" class="text-muted">Loading documents...</div>
-          <div id="documents-pagination" class="pagination-controls"></div>
-        </div>
-        <div class="table-shell">
-          <table class="admin-table">
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>Type</th>
-                <th>Uploaded</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="documents-table-body"></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <section id="admin-analytics" class="admin-section">
-      <div class="section-heading">
-        <div>
-          <h2><i class="bi bi-bar-chart-line"></i> Query Analytics</h2>
-        </div>
-        <div class="section-chip"><i class="bi bi-incognito"></i> Privacy-first</div>
-      </div>
-
-      <div class="analytics-block">
-        <h3><i class="bi bi-heart-pulse"></i> System Health</h3>
-        <div id="health-stats" class="metrics-grid"></div>
-      </div>
-
-      <div class="analytics-block">
-        <h3><i class="bi bi-graph-up"></i> Query Performance by Topic</h3>
-        <div class="charts-grid">
-          <div class="chart-container">
-            <canvas id="queryPerformanceChart"></canvas>
-          </div>
-          <div class="chart-container">
-            <canvas id="successRateChart"></canvas>
-          </div>
-        </div>
-        <div class="table-shell">
-          <table class="admin-table">
-            <thead>
-              <tr>
-                <th>Topic</th>
-                <th>Queries</th>
-                <th>Avg Confidence</th>
-                <th>Success Rate</th>
-              </tr>
-            </thead>
-            <tbody id="query-stats-body"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="analytics-block">
-        <h3><i class="bi bi-book-half"></i> Top Documents Used</h3>
-        <div class="chart-container">
-          <canvas id="documentsChart"></canvas>
-        </div>
-        <div class="table-shell">
-          <table class="admin-table">
-            <thead>
-              <tr>
-                <th>Document</th>
-                <th>Times Retrieved</th>
-                <th>Avg Confidence</th>
-              </tr>
-            </thead>
-            <tbody id="document-stats-body"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="analytics-block">
-        <h3><i class="bi bi-exclamation-circle"></i> Knowledge Gaps</h3>
-        <div class="table-shell">
-          <table class="admin-table">
-            <thead>
-              <tr>
-                <th>Topic</th>
-                <th>Fallback Reason</th>
-                <th>Occurrences</th>
-                <th>Suggested Document</th>
-              </tr>
-            </thead>
-            <tbody id="knowledge-gaps-body"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="analytics-block">
-        <h3><i class="bi bi-hand-thumbs-up"></i> User Feedback by Topic</h3>
-        <div id="feedback-summary"></div>
-      </div>
-    </section>
-  </div>
-
-  <script src="/cbc-guidance-chatbot/frontend/js/admin.js"></script>
+</div>
+<script src="/cbc-guidance-chatbot/frontend/js/admin.js"></script>
 </body>
 </html>
