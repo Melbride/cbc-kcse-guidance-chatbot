@@ -8,7 +8,7 @@ from typing import Optional
 import json
 from pathlib import Path
 from rag.rag_query import query_rag, QueryRequest
-from database.db_manager import DatabaseManager
+from database.db_manager import get_shared_db, close_shared_db
 from models.request_models import (
     UserCreate,
     UserProfile,
@@ -53,6 +53,11 @@ async def startup_event():
     print("=== Ready. Server accepting requests. ===", flush=True)
 
 
+@app.on_event("shutdown")
+async def shutdown_event():
+    close_shared_db()
+
+
 #lazy initialization functions
 def get_pathway_recommender():
     from rag.rag_query import get_pathway_recommender as _get
@@ -62,15 +67,9 @@ def get_analytics():
     from rag.rag_query import get_analytics as _get
     return _get()
 
-# Database manager will be initialized when needed
-db = None
-
 def get_db():
     """Get database manager instance"""
-    global db
-    if db is None:
-        db = DatabaseManager()
-    return db
+    return get_shared_db()
 
 def require_admin(request: Request):
     """Lightweight admin gate based on configured admin users."""

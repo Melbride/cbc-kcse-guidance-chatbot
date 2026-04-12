@@ -1,14 +1,14 @@
 import hashlib
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
-from database.db_manager import DatabaseManager
+from database.db_manager import get_shared_db
 import json
 
 class AnalyticsManager:
     """Privacy-first analytics for RAG system - no PII stored"""
     
     def __init__(self):
-        self.db = DatabaseManager()
+        self.db = get_shared_db()
     
     def hash_query(self, query: str) -> str:
         """Hash query for anonymization"""

@@ -8,9 +8,13 @@ from datetime import datetime
 from typing import Optional, List, Dict
 import numpy as np
 import uuid
+from threading import Lock
 
 #load environment variables
 load_dotenv()
+
+_db_singleton = None
+_db_lock = Lock()
 
 
 class DatabaseManager:
@@ -23,6 +27,14 @@ class DatabaseManager:
                     self.conn.rollback()
         except Exception as e:
             print(f"Warning: failed to reset transaction state: {e}")
+
+    def close(self):
+        """Close the underlying database connection if it is open."""
+        try:
+            if self.conn and not self.conn.closed:
+                self.conn.close()
+        except Exception as e:
+            print(f"Warning: failed to close database connection: {e}")
 
     def get_all_users(self):
         """Return all users for admin dashboard"""
@@ -328,24 +340,12 @@ class DatabaseManager:
     # ── School query methods ──────────────────────────────────────────────────
 
     def get_schools_by_pathway(self, pathway: str, county: str = None, limit: int = 50, gender: str = None) -> List[Dict]:
+        self._reset_failed_transaction()
         try:
             pathway_upper = self._normalize_pathway(pathway)
             county_upper = self._normalize_county(county)
 
-            database_url = os.getenv("DATABASE_URL")
-            if database_url:
-                fresh_conn = psycopg2.connect(database_url, connect_timeout=10)
-            else:
-                fresh_conn = psycopg2.connect(
-                    host=os.getenv("DB_HOST", "localhost"),
-                    database=os.getenv("DB_NAME", "cbc_chatbot"),
-                    user=os.getenv("DB_USER", "postgres"),
-                    password=os.getenv("DB_PASSWORD"),
-                    port=os.getenv("DB_PORT", "5432"),
-                    connect_timeout=10
-                )
-
-            with fresh_conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 pathway_pattern = f"%{pathway_upper}%"
 
                 if county:
@@ -397,10 +397,10 @@ class DatabaseManager:
                     cursor.execute(query, params)
                     results = cursor.fetchall()
 
-                fresh_conn.close()
                 return results
 
         except Exception as e:
+            self.conn.rollback()
             print(f"Error getting schools by pathway: {e}")
             return []
 
@@ -841,21 +841,9 @@ class DatabaseManager:
 
     def get_profile(self, user_id: str):
         """Get user profile combined with user info"""
+        self._reset_failed_transaction()
         try:
-            database_url = os.getenv("DATABASE_URL")
-            if database_url:
-                fresh_conn = psycopg2.connect(database_url, connect_timeout=10)
-            else:
-                fresh_conn = psycopg2.connect(
-                    host=os.getenv("DB_HOST", "localhost"),
-                    database=os.getenv("DB_NAME", "cbc_chatbot"),
-                    user=os.getenv("DB_USER", "postgres"),
-                    password=os.getenv("DB_PASSWORD"),
-                    port=os.getenv("DB_PORT", "5432"),
-                    connect_timeout=10
-                )
-
-            with fresh_conn.cursor(cursor_factory=RealDictCursor) as cur:
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
                     SELECT
                         u.user_id, u.name, u.email, u.created_at, u.last_active,
@@ -888,12 +876,31 @@ class DatabaseManager:
                     WHERE u.user_id = %s
                 """, (user_id,))
                 result = cur.fetchone()
-                fresh_conn.close()
                 return result
 
         except Exception as e:
+            self.conn.rollback()
             print(f"Error getting profile: {e}")
             return None
+
+
+def get_shared_db() -> DatabaseManager:
+    """Process-wide shared DatabaseManager instance."""
+    global _db_singleton
+    if _db_singleton is None:
+        with _db_lock:
+            if _db_singleton is None:
+                _db_singleton = DatabaseManager()
+    return _db_singleton
+
+
+def close_shared_db() -> None:
+    """Close and clear the process-wide shared DatabaseManager instance."""
+    global _db_singleton
+    with _db_lock:
+        if _db_singleton is not None:
+            _db_singleton.close()
+            _db_singleton = None
 
     def get_user_stage(self, user_id: str):
         """Get user's current stage from database"""

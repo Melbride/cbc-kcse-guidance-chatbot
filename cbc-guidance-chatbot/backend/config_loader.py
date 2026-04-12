@@ -19,18 +19,12 @@ PostgreSQL schema (from kenya_senior_schools_pathways_v3.xlsx):
 
 import os
 import json
-from database.db_manager import DatabaseManager
+from database.db_manager import DatabaseManager, get_shared_db
 
-# ── Database singleton ────────────────────────────────────────────────────────
-
-db = None
 
 def get_db() -> DatabaseManager:
-    """Get (or lazily create) the shared DatabaseManager instance."""
-    global db
-    if db is None:
-        db = DatabaseManager()
-    return db
+    """Get the process-wide shared DatabaseManager instance."""
+    return get_shared_db()
 
 
 # ── JSON config loading ───────────────────────────────────────────────────────
