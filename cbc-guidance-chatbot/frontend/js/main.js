@@ -890,16 +890,13 @@ async function login() {
 
       if (!profile.journey_stage) {
 
-        navigate('stage.html');
-
-      } else if (!isStageComplete(profile, stage)) {
-
-        // Only ask for missing details of the user's current stage.
-
-        navigate('profile.html');
+        // No stage ever selected — force them to pick one
+        navigate('stage.html?onboarding=1');
 
       } else {
 
+        // Has a stage (even incomplete profile) → go to dashboard
+        // The bot guides them conversationally, no need to force profile form
         navigate('dashboard.html');
 
       }
