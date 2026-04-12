@@ -627,13 +627,8 @@ function renderQueryStats(data) {
     </tr>
   `).join('');
 
-  // Bar chart — query volume
   const labels = stats.map(s => s.topic_category || 'Unknown');
-  const counts = stats.map(s => s.count || 0);
   const rates  = stats.map(s => +((s.success_rate || 0) * 100).toFixed(1));
-
-  buildChart('chart-queries', chartQueries, 'bar', labels, counts,
-    'Queries', '#1e3a8a', c => { chartQueries = c; });
 
   buildChart('chart-success', chartSuccess, 'doughnut', labels, rates,
     'Success Rate %',
