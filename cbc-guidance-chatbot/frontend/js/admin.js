@@ -17,6 +17,7 @@ const API_BASE = 'https://cbc-kcse-guidance-chatbot.onrender.com';
 let chartQueries  = null;
 let chartSuccess  = null;
 let chartDocs     = null;
+const analyticsCache = { timestamp: 0, ttlMs: 60000, data: null };
 
 // Pagination state
 const schoolsState   = { page: 1, pageSize: 30, total: 0, totalPages: 0 };
@@ -125,6 +126,63 @@ function statusBadge(active) {
 
 function emptyRow(cols, msg) {
   return `<tr><td colspan="${cols}"><div class="empty">${msg}</div></td></tr>`;
+}
+
+function setStatus(id, message) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = message;
+}
+
+function renderMetricSkeleton(containerId, count = 4) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = Array.from({ length: count }, () => `
+    <div class="metric-card">
+      <div class="skeleton-line" style="width:48%; height:28px;"></div>
+      <div class="skeleton-line" style="width:68%;"></div>
+    </div>
+  `).join('');
+}
+
+function renderTableSkeleton(tbodyId, cols, rows = 4) {
+  const el = document.getElementById(tbodyId);
+  if (!el) return;
+  el.innerHTML = Array.from({ length: rows }, () => `
+    <tr>${Array.from({ length: cols }, () => '<td><div class="skeleton-line"></div></td>').join('')}</tr>
+  `).join('');
+}
+
+function renderFeedbackSkeleton() {
+  const el = document.getElementById('feedback-container');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="skeleton-grid">
+      ${Array.from({ length: 4 }, () => '<div class="skeleton-tile"></div>').join('')}
+    </div>
+  `;
+}
+
+function applyAnalyticsLoadingState() {
+  renderMetricSkeleton('health-metrics', 4);
+  renderTableSkeleton('query-stats-tbody', 4, 4);
+  renderTableSkeleton('doc-stats-tbody', 3, 4);
+  renderTableSkeleton('gaps-tbody', 4, 4);
+  renderFeedbackSkeleton();
+  setStatus('analytics-health-status', 'Loading...');
+  setStatus('analytics-query-status', 'Loading...');
+  setStatus('analytics-doc-status', 'Loading...');
+  setStatus('analytics-gap-status', 'Loading...');
+  setStatus('analytics-feedback-status', 'Loading...');
+  setStatus('analytics-status-pill', 'Loading analytics');
+}
+
+function updateAnalyticsSummary(source = 'fresh') {
+  const ageLabel = source === 'cache' ? 'Showing cached view' : 'Live analytics ready';
+  setStatus('analytics-status-pill', ageLabel);
+}
+
+function destroyChart(instance) {
+  if (instance) instance.destroy();
 }
 
 
@@ -425,22 +483,105 @@ async function deleteDocument(docPath, docTitle) {
 // ── ANALYTICS ─────────────────────────────────────────────────────────────────
 
 async function loadAnalytics() {
-  try {
-    const [healthRes, queryRes, docRes, gapRes, feedbackRes] = await Promise.all([
-      apiFetch('/admin/analytics/system-health?days=7'),
-      apiFetch('/admin/analytics/query-stats?days=7'),
-      apiFetch('/admin/analytics/documents'),
-      apiFetch('/admin/analytics/knowledge-gaps?limit=10'),
-      apiFetch('/admin/analytics/feedback?days=7'),
-    ]);
+  const isCacheFresh = analyticsCache.data && (Date.now() - analyticsCache.timestamp) < analyticsCache.ttlMs;
+  if (isCacheFresh) {
+    renderAnalyticsFromCache(analyticsCache.data);
+    updateAnalyticsSummary('cache');
+    return;
+  }
 
-    renderHealth(await healthRes.json());
-    renderQueryStats(await queryRes.json());
-    renderDocStats((await docRes.json()).documents || []);
-    renderGaps((await gapRes.json()).gaps || []);
-    renderFeedback(await feedbackRes.json());
+  applyAnalyticsLoadingState();
+
+  const tasks = [
+    loadAnalyticsBlock('health', '/admin/analytics/system-health?days=7', (data) => {
+      renderHealth(data);
+      setStatus('analytics-health-status', 'Updated just now');
+      return data;
+    }),
+    loadAnalyticsBlock('query', '/admin/analytics/query-stats?days=7', (data) => {
+      renderQueryStats(data);
+      setStatus('analytics-query-status', 'Topic chart ready');
+      return data;
+    }),
+    loadAnalyticsBlock('documents', '/admin/analytics/documents', (data) => {
+      const docs = data.documents || [];
+      renderDocStats(docs);
+      setStatus('analytics-doc-status', 'Document usage ready');
+      return docs;
+    }),
+    loadAnalyticsBlock('gaps', '/admin/analytics/knowledge-gaps?limit=10', (data) => {
+      const gaps = data.gaps || [];
+      renderGaps(gaps);
+      setStatus('analytics-gap-status', 'Gap trends ready');
+      return gaps;
+    }),
+    loadAnalyticsBlock('feedback', '/admin/analytics/feedback?days=7', (data) => {
+      renderFeedback(data);
+      setStatus('analytics-feedback-status', 'Feedback summary ready');
+      return data;
+    }),
+  ];
+
+  const results = await Promise.all(tasks);
+  analyticsCache.timestamp = Date.now();
+  analyticsCache.data = Object.fromEntries(results.filter(Boolean));
+  updateAnalyticsSummary('fresh');
+}
+
+async function loadAnalyticsBlock(key, path, onSuccess) {
+  try {
+    const res = await apiFetch(path);
+    const data = await res.json();
+    return [key, onSuccess(data)];
   } catch (e) {
-    console.error('Analytics load failed:', e);
+    console.error(`Analytics block failed: ${key}`, e);
+    renderAnalyticsBlockError(key, e);
+    return [key, null];
+  }
+}
+
+function renderAnalyticsFromCache(data) {
+  renderHealth(data.health || {});
+  renderQueryStats(data.query || {});
+  renderDocStats(data.documents || []);
+  renderGaps(data.gaps || []);
+  renderFeedback(data.feedback || {});
+  setStatus('analytics-health-status', 'Recently loaded');
+  setStatus('analytics-query-status', 'Recently loaded');
+  setStatus('analytics-doc-status', 'Recently loaded');
+  setStatus('analytics-gap-status', 'Recently loaded');
+  setStatus('analytics-feedback-status', 'Recently loaded');
+}
+
+function renderAnalyticsBlockError(key, error) {
+  const message = error?.message || 'Failed to load';
+  if (key === 'health') {
+    document.getElementById('health-metrics').innerHTML = '<div class="empty">Health metrics could not be loaded right now.</div>';
+    setStatus('analytics-health-status', message);
+    return;
+  }
+  if (key === 'query') {
+    destroyChart(chartQueries); chartQueries = null;
+    destroyChart(chartSuccess); chartSuccess = null;
+    renderTableSkeleton('query-stats-tbody', 4, 1);
+    document.getElementById('query-stats-tbody').innerHTML = emptyRow(4, 'Query performance is unavailable right now.');
+    setStatus('analytics-query-status', message);
+    return;
+  }
+  if (key === 'documents') {
+    destroyChart(chartDocs); chartDocs = null;
+    document.getElementById('doc-stats-tbody').innerHTML = emptyRow(3, 'Document usage is unavailable right now.');
+    setStatus('analytics-doc-status', message);
+    return;
+  }
+  if (key === 'gaps') {
+    document.getElementById('gaps-tbody').innerHTML = emptyRow(4, 'Knowledge gaps are unavailable right now.');
+    setStatus('analytics-gap-status', message);
+    return;
+  }
+  if (key === 'feedback') {
+    document.getElementById('feedback-container').innerHTML = '<div class="empty">Feedback summary is unavailable right now.</div>';
+    setStatus('analytics-feedback-status', message);
   }
 }
 

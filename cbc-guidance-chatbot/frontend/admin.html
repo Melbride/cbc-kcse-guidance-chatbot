@@ -67,6 +67,18 @@
       margin: 0 0 16px; font-size: 17px; font-weight: 800;
       color: #0f172a; display: flex; align-items: center; gap: 8px;
     }
+    .section-intro {
+      color:#64748b; font-size:13px; margin:-8px 0 16px; line-height:1.6;
+    }
+    .section-meta {
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      margin-bottom:14px; flex-wrap:wrap;
+    }
+    .pill-muted {
+      display:inline-flex; align-items:center; gap:8px;
+      padding:7px 12px; border-radius:999px; background:#f8fafc;
+      border:1px solid #e2e8f0; color:#64748b; font-size:12px; font-weight:700;
+    }
 
     /* Metrics */
     .metrics-grid {
@@ -149,6 +161,42 @@
       padding: 16px; min-height: 240px;
     }
     .chart-box h3 { margin: 0 0 12px; font-size: 14px; font-weight: 700; color: #334155; }
+    .analytics-grid {
+      display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:16px;
+    }
+    .analytics-grid .section-card { margin-bottom:0; }
+    .analytics-grid .span-2 { grid-column: span 2; }
+    .analytics-status {
+      color:#64748b; font-size:12px; font-weight:700; margin-left:auto;
+    }
+
+    /* Loading polish */
+    .loading-block {
+      border: 1px dashed #dbe4ee; border-radius: 14px; background: #f8fafc;
+      padding: 18px;
+    }
+    .skeleton-line, .skeleton-tile {
+      position: relative; overflow: hidden; background: #e2e8f0;
+    }
+    .skeleton-line::after, .skeleton-tile::after {
+      content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.7), transparent);
+      animation: shimmer 1.2s infinite;
+    }
+    .skeleton-line {
+      height: 12px; border-radius: 999px; margin-bottom: 10px;
+    }
+    .skeleton-line:last-child { margin-bottom: 0; }
+    .skeleton-tile {
+      height: 92px; border-radius: 14px;
+    }
+    .skeleton-grid {
+      display:grid; grid-template-columns: repeat(4, 1fr); gap:12px;
+    }
+
+    @keyframes shimmer {
+      100% { transform: translateX(100%); }
+    }
 
     /* Empty state */
     .empty { padding: 24px; text-align: center; color: #94a3b8; font-size: 13px; }
@@ -162,10 +210,14 @@
 
     @media (max-width: 900px) {
       .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+      .skeleton-grid { grid-template-columns: repeat(2, 1fr); }
       .charts-grid { grid-template-columns: 1fr; }
+      .analytics-grid { grid-template-columns: 1fr; }
+      .analytics-grid .span-2 { grid-column: auto; }
     }
     @media (max-width: 600px) {
       .metrics-grid { grid-template-columns: 1fr; }
+      .skeleton-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -306,12 +358,27 @@
   <!-- ANALYTICS -->
   <section id="section-analytics" class="admin-section">
     <div class="section-card">
+      <div class="section-meta">
+        <div>
+          <h2><i class="bi bi-bar-chart-line"></i> Analytics Overview</h2>
+          <p class="section-intro" style="margin:6px 0 0;">
+            This section updates from student activity. Cards should appear quickly, while charts may take a moment longer when more chat history is being processed.
+          </p>
+        </div>
+        <div class="pill-muted" id="analytics-status-pill"><i class="bi bi-lightning-charge"></i> Loading analytics</div>
+      </div>
+    </div>
+
+    <div class="analytics-grid">
+    <div class="section-card">
       <h2><i class="bi bi-heart-pulse"></i> System Health (Last 7 Days)</h2>
+      <div class="analytics-status" id="analytics-health-status">Loading...</div>
       <div class="metrics-grid" id="health-metrics"></div>
     </div>
 
     <div class="section-card">
       <h2><i class="bi bi-graph-up"></i> Query Performance by Topic</h2>
+      <div class="analytics-status" id="analytics-query-status">Loading...</div>
       <div class="charts-grid">
         <div class="chart-box">
           <h3>Query Volume by Topic</h3>
@@ -332,6 +399,7 @@
 
     <div class="section-card">
       <h2><i class="bi bi-book-half"></i> Most Used Documents</h2>
+      <div class="analytics-status" id="analytics-doc-status">Loading...</div>
       <div class="chart-box" style="margin-bottom:12px;">
         <canvas id="chart-docs"></canvas>
       </div>
@@ -345,6 +413,7 @@
 
     <div class="section-card">
       <h2><i class="bi bi-exclamation-circle"></i> Knowledge Gaps</h2>
+      <div class="analytics-status" id="analytics-gap-status">Loading...</div>
       <p style="color:#64748b; font-size:13px; margin: -8px 0 12px;">
         Questions students asked that the system couldn't answer well. Use these to know what documents to upload.
       </p>
@@ -356,9 +425,11 @@
       </div>
     </div>
 
-    <div class="section-card">
+    <div class="section-card span-2">
       <h2><i class="bi bi-hand-thumbs-up"></i> Student Feedback</h2>
+      <div class="analytics-status" id="analytics-feedback-status">Loading...</div>
       <div id="feedback-container"></div>
+    </div>
     </div>
   </section>
 
