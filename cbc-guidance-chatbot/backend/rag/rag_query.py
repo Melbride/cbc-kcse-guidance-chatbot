@@ -8,13 +8,16 @@ Flow per request:
   1. Load user profile + stage from DB
   2. Run onboarding if user has no stage yet
   3. Load last 6 conversation turns
-  4. LLM call 1 (tiny): extract Pinecone search term from message
-  5. Pinecone search (LangChain) for CBC curriculum documents
-  6. PostgreSQL query for school data if question is school-related
-  7. LLM call 2 (main): profile + history + docs + schools → guidance response
-     The LLM also signals if it thinks the user's stage has changed.
-  8. Save conversation to DB
-  9. Return response with optional stage_update_prompt for frontend banner
+  4. LLM call 1 (tiny): decide what to search and where
+     - Returns: pinecone_term (or SKIP), needs_schools (YES/NO),
+                county, pathway, gender filters for school query
+  5. Pinecone search if pinecone_term is not SKIP
+  6. PostgreSQL school query if needs_schools is YES
+  7. LLM call 2 (main): profile + history + docs + schools → response
+     LLM also signals stage changes via STAGE_UPDATE: tag
+  8. Parse stage update, save to DB, return response
+
+Two LLM calls only. Fast and clean.
 """
 
 import os
@@ -71,26 +74,34 @@ def get_pathway_recommender():
 
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
-REWRITE_SYSTEM = """You extract a short search term from a student's message for use in a vector database search.
+# Single routing call — decides BOTH what to search in Pinecone AND
+# whether to query the school database, in one LLM call.
+ROUTER_SYSTEM = """You are a search router for a CBC education guidance system.
 
-Rules:
-- Output ONLY the search term. Nothing else. No explanation.
-- 1 to 6 words maximum.
-- Use conversation history to resolve vague references like "that pathway" or "the first one".
-- If the message is a greeting, small talk, or contains nothing specific to search for → output: SKIP
-- If the message is about schools → output: SKIP (schools come from a separate database, not vector search)
-- If the message is about CBC grades like EE2, ME1 → output: CBC grading performance levels
-- If the message is about pathway subject combinations → output: [pathway name] subject combinations
-- If the message is about careers → output: careers [field]
-- If the message is about a specific pathway → include the pathway name
+Given a student's message and conversation history, output a JSON object deciding what data to fetch.
 
-Examples:
-"What does EE2 mean?" → CBC grading EE2 performance level
-"What subjects do I take in STEM?" → STEM subject combinations tracks
-"I want to be a doctor" → medicine careers CBC pathway
-"Which schools offer STEM in Nairobi?" → SKIP
-"Hi" → SKIP
-"Tell me more" → [use history to determine topic, then output relevant term]
+Output ONLY valid JSON, nothing else:
+{
+  "pinecone_term": "search term for CBC curriculum documents, or SKIP if not needed",
+  "needs_schools": "YES or NO",
+  "county": "Kenya county name or null",
+  "pathway": "STEM or SOCIAL SCIENCES or ARTS & SPORTS or null",
+  "gender": "BOYS or GIRLS or MIXED or null",
+  "school_type": "NATIONAL or COUNTY or SUB-COUNTY or null"
+}
+
+Rules for pinecone_term:
+- Use 1-6 words for CBC curriculum topics: pathway explanations, grade meanings, career guidance
+- SKIP for greetings, small talk, vague messages, or when the question is ONLY about schools
+- SKIP for school listings (those come from the school database instead)
+- Examples: "CBC grading EE2 meaning" | "STEM pathway explanation" | "Social Sciences careers" | SKIP
+
+Rules for needs_schools:
+- YES if the message asks about specific schools, school listings, schools in a county/region,
+  schools offering a pathway, boarding schools, girls/boys schools, or school types
+- NO for everything else (grades, pathways, careers, subjects, general guidance)
+
+Use conversation history to resolve vague references.
 """
 
 GUIDANCE_SYSTEM = """You are a warm, knowledgeable CBC Education Guidance Counsellor helping students and parents in Kenya navigate the CBC senior school system.
@@ -100,159 +111,134 @@ THE CBC SYSTEM:
   1. STEM — Science, Technology, Engineering, Mathematics
   2. Social Sciences — Humanities, Business, Languages
   3. Arts and Sports Science — Creative Arts, Music, Sports, Performance
-- CBC grading scale from highest to lowest: EE2, EE1, ME2, ME1, AE2, AE1, BE2, BE1
+- CBC grading from highest to lowest: EE2 > EE1 > ME2 > ME1 > AE2 > AE1 > BE2 > BE1
   EE = Exceeds Expectation, ME = Meets Expectation, AE = Approaches Expectation, BE = Below Expectation
 
 RANKED RECOMMENDATIONS:
-- When recommending pathways or subject combinations, always RANK them clearly from most suitable to least suitable based on the student's profile, interests, grades, and career goals
-- Explain WHY each option is ranked where it is — what about their profile makes it a good or less good fit
-- Be specific: "STEM ranks first for you because..." not just "STEM might be good"
-- If the student has grades, use them to inform the ranking
-- If the student has career interests, use those to inform the ranking
+- When recommending pathways or subject combinations, RANK them from most to least suitable
+- Explain WHY each is ranked where it is based on the student's profile, grades, and career goals
+- Be specific: "STEM ranks first for you because your mathematics score is strong and you want to engineer"
 
-HONESTY RULES — CRITICAL:
-- ONLY use information from the CBC documents and school data provided below
-- If specific details are NOT in the provided documents or school data, say honestly: "I don't have that specific detail right now — you can check with your school or the KNEC website"
-- NEVER invent pathway tracks, subject combination codes, school names, programme names, or any facts
-- NEVER guess or fill gaps with assumed knowledge
-- It is better to say "I don't have that detail" than to give wrong information
-- If no school data was found for a query, say so honestly
+HONESTY RULES — CRITICAL — READ CAREFULLY:
+- ONLY use facts from the CBC documents and school data provided in this prompt
+- If specific details like pathway tracks, subject combination codes, or school names are NOT in the provided data, say: "I don't have that specific detail right now — check with your school or the KNEC website"
+- NEVER invent pathway tracks, subject codes, school names, or any facts not in the data
+- NEVER guess. If it is not in the documents provided, say so.
+- It is always better to say "I don't have that detail" than to give wrong information
 
-STAGE DETECTION — IMPORTANT:
-- Pay attention to what the student says about their situation
-- If they mention getting results, grades (like EE2), or having sat exams → they are likely now in Stage 2 (post_results)
-- If they mention being placed in a school, form one, reporting date → they are likely in Stage 3 (post_placement)
-- If you detect their situation has changed from what their profile shows, add this EXACT text at the very end of your response on a new line:
-  STAGE_UPDATE:post_results
-  or
-  STAGE_UPDATE:post_placement
-  (only add this if you are confident their stage has changed — don't add it for vague statements)
+STAGE DETECTION:
+- If the student mentions receiving results or specific grades (EE2, ME1 etc) → add STAGE_UPDATE:post_results on a new line at the very end
+- If the student mentions being placed in a school or form one → add STAGE_UPDATE:post_placement on a new line at the very end
+- Only add STAGE_UPDATE if you are confident their situation has changed — not for vague statements
+
+GREETING BEHAVIOUR:
+- If the student says "Hi", "Hello", or any greeting:
+  - If this is their first time: welcome them warmly and ask what they need help with
+  - If they are returning: say something like "Welcome back! What would you like to explore today?"
+  - NEVER dump their profile information back at them in a greeting
+  - NEVER mention their name, interests, or career goals unprompted in a greeting
+  - Keep greetings to 1-2 sentences maximum
 
 CONVERSATION STYLE:
 - Warm and direct, like a school counsellor talking face to face
 - No heavy markdown, no bullet-point walls
 - 2 to 4 short paragraphs maximum per response
-- Always end with ONE natural follow-up question to keep the guidance moving
+- Always end with ONE natural follow-up question
 - Never repeat the student's profile back to them
 - Use "you" and "your" — never use he/she/they when referring to the student
 - If they seem confused, simplify and reassure
-- Greetings: respond warmly and ask what they need help with
 """
 
 
-# ── Query rewrite ─────────────────────────────────────────────────────────────
+# ── Step 1: Single routing call ───────────────────────────────────────────────
 
-def rewrite_query(user_message: str, history: list) -> str:
+def route_query(user_message: str, history: list) -> dict:
     """
-    LLM call 1: extract a Pinecone search term from the user's message.
-    Returns empty string if message needs no vector search (SKIP).
+    Single LLM call that decides:
+    - What to search in Pinecone (or SKIP)
+    - Whether to query the school database
+    - What filters to use for school query
+
+    Returns a dict with keys:
+      pinecone_term, needs_schools, county, pathway, gender, school_type
     """
     history_text = ""
     for item in (history or [])[-6:]:
         q = (item.get("question") or "").strip()
         a = (item.get("answer") or "").strip()
+        # Strip STAGE_UPDATE tags from history
+        a = a.split("STAGE_UPDATE:")[0].strip()
         if q:
             history_text += f"User: {q[:150]}\n"
         if a:
             history_text += f"Assistant: {a[:150]}\n"
 
     user_content = (
-        f"Conversation so far:\n{history_text}\nLatest message: {user_message}\n\nSearch term:"
+        f"Conversation so far:\n{history_text}\nLatest message: {user_message}"
         if history_text
-        else f"Latest message: {user_message}\n\nSearch term:"
+        else f"Latest message: {user_message}"
     )
+
+    defaults = {
+        "pinecone_term": user_message[:80],
+        "needs_schools": "NO",
+        "county": None,
+        "pathway": None,
+        "gender": None,
+        "school_type": None,
+    }
 
     try:
         resp = get_groq_client().chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
-                {"role": "system", "content": REWRITE_SYSTEM},
+                {"role": "system", "content": ROUTER_SYSTEM},
                 {"role": "user",   "content": user_content},
             ],
             temperature=0.0,
-            max_tokens=20,
-        )
-        term = resp.choices[0].message.content.strip()
-        print(f"DEBUG search term: '{term}'", flush=True)
-        return "" if term.upper() == "SKIP" else term
-    except Exception as e:
-        print(f"Warning: query rewrite failed: {e}", flush=True)
-        return user_message[:100]
-
-
-# ── School data from PostgreSQL ───────────────────────────────────────────────
-
-def is_school_question(user_message: str, history: list) -> bool:
-    """
-    Ask the LLM whether this message is asking about schools.
-    Simple yes/no call — no keyword matching.
-    """
-    try:
-        resp = get_groq_client().chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You decide if a message is asking about specific schools, "
-                        "school listings, or schools in a county/region. "
-                        "Output only YES or NO."
-                    )
-                },
-                {"role": "user", "content": user_message},
-            ],
-            temperature=0.0,
-            max_tokens=5,
-        )
-        answer = resp.choices[0].message.content.strip().upper()
-        return answer == "YES"
-    except Exception:
-        return False
-
-
-def fetch_school_data(user_message: str) -> str:
-    """
-    Pull school data from PostgreSQL based on what the message is asking.
-    Uses the LLM to extract county, pathway, gender filters — no hardcoding.
-    Returns a formatted string to pass to the main LLM.
-    """
-    # Ask LLM to extract filters from the message
-    try:
-        resp = get_groq_client().chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Extract school search filters from the message. "
-                        "Output ONLY a JSON object with these keys (use null if not mentioned): "
-                        '{"county": null, "pathway": null, "gender": null, "school_type": null} '
-                        "Pathway must be one of: STEM, SOCIAL SCIENCES, ARTS & SPORTS, or null. "
-                        "Gender must be one of: BOYS, GIRLS, MIXED, or null. "
-                        "County is a Kenya county name or null."
-                    )
-                },
-                {"role": "user", "content": user_message},
-            ],
-            temperature=0.0,
-            max_tokens=80,
+            max_tokens=120,
         )
         raw = resp.choices[0].message.content.strip()
-        # Parse JSON
-        filters = json.loads(raw)
+        # Strip markdown fences if present
+        raw = raw.replace("```json", "").replace("```", "").strip()
+        parsed = json.loads(raw)
+        print(f"DEBUG router: {parsed}", flush=True)
+        return {**defaults, **parsed}
     except Exception as e:
-        print(f"Warning: filter extraction failed: {e}", flush=True)
-        filters = {}
+        print(f"Warning: router call failed: {e}", flush=True)
+        return defaults
 
-    county      = filters.get("county")
-    pathway     = filters.get("pathway")
-    gender      = filters.get("gender")
-    school_type = filters.get("school_type")
 
-    print(f"DEBUG school filters: county={county}, pathway={pathway}, gender={gender}", flush=True)
+# ── Step 2a: Pinecone retrieval ───────────────────────────────────────────────
+
+def run_pinecone_search(pinecone_term: str) -> list:
+    """Search Pinecone for CBC curriculum documents."""
+    if not pinecone_term or pinecone_term.upper() == "SKIP":
+        return []
+    docs = retrieve_documents(pinecone_term, k=5)
+    print(f"DEBUG: {len(docs)} docs from Pinecone for '{pinecone_term}'", flush=True)
+    return docs
+
+
+# ── Step 2b: PostgreSQL school query ─────────────────────────────────────────
+
+def run_school_query(route: dict) -> str:
+    """
+    Query PostgreSQL for schools using filters from the router.
+    Returns a formatted string for the main LLM, or empty string if not needed.
+    """
+    if route.get("needs_schools", "NO").upper() != "YES":
+        return ""
+
+    county      = route.get("county")
+    pathway     = route.get("pathway")
+    gender      = route.get("gender")
+    school_type = route.get("school_type")
+
+    print(f"DEBUG: School query — county={county}, pathway={pathway}, gender={gender}", flush=True)
 
     try:
-        result = get_db().get_schools_catalog(
+        result  = get_db().get_schools_catalog(
             pathway=pathway,
             county=county,
             gender=gender,
@@ -264,22 +250,22 @@ def fetch_school_data(user_message: str) -> str:
         total   = result.get("total", 0)
 
         if not schools:
-            return f"No schools found in the database for that query (county: {county}, pathway: {pathway})."
+            filters = f"county={county}, pathway={pathway}, gender={gender}"
+            return f"No schools found in the database matching: {filters}."
 
-        lines = [f"School data from database ({total} total found, showing first {len(schools)}):"]
+        lines = [f"School data from database ({total} total, showing {len(schools)}):"]
         for s in schools:
-            name       = s.get("school_name") or s.get("name") or "Unknown"
-            county_val = s.get("county", "")
-            stype      = s.get("type") or s.get("school_type", "")
-            sgender    = s.get("gender", "")
-            pathways   = s.get("pathways_offered", [])
+            name     = s.get("school_name") or s.get("name") or "Unknown"
+            cty      = s.get("county", "")
+            stype    = s.get("type") or s.get("school_type", "")
+            sgender  = s.get("gender", "")
+            pathways = s.get("pathways_offered", [])
             if isinstance(pathways, list):
                 pathways_str = ", ".join(pathways) if pathways else "Not specified"
             else:
-                pathways_str = str(pathways)
-            lines.append(
-                f"- {name} | {county_val} | {stype} | {sgender} | Pathways: {pathways_str}"
-            )
+                pathways_str = str(pathways) if pathways else "Not specified"
+            lines.append(f"- {name} | {cty} | {stype} | {sgender} | {pathways_str}")
+
         return "\n".join(lines)
 
     except Exception as e:
@@ -301,7 +287,7 @@ def format_profile_block(profile: dict | None, stage: str | None) -> str:
     }
     lines = [f"Student stage: {stage_labels.get(stage or '', 'Unknown')}"]
 
-    fields = [
+    for key, label in [
         ("name",             "Name"),
         ("favorite_subject", "Favourite subject"),
         ("interests",        "Interests"),
@@ -311,8 +297,7 @@ def format_profile_block(profile: dict | None, stage: str | None) -> str:
         ("knec_recommended_pathway", "KNEC recommended pathway"),
         ("placed_school",    "Placed school"),
         ("placed_pathway",   "Placed pathway"),
-    ]
-    for key, label in fields:
+    ]:
         if profile.get(key):
             lines.append(f"{label}: {profile[key]}")
 
@@ -356,7 +341,6 @@ def format_history_for_llm(history: list) -> list:
     for item in list(reversed(history))[-10:]:
         q = (item.get("question") or "").strip()
         a = (item.get("answer") or "").strip()
-        # Strip any STAGE_UPDATE tags from history before sending to LLM
         a = a.split("STAGE_UPDATE:")[0].strip()
         if q:
             messages.append({"role": "user",      "content": q})
@@ -365,7 +349,7 @@ def format_history_for_llm(history: list) -> list:
     return messages
 
 
-# ── Main LLM call ─────────────────────────────────────────────────────────────
+# ── Step 3: Main LLM guidance call ───────────────────────────────────────────
 
 def call_guidance_llm(
     user_message: str,
@@ -374,10 +358,7 @@ def call_guidance_llm(
     school_block: str,
     history_messages: list,
 ) -> str:
-    """
-    Main guidance LLM call.
-    Returns raw response including any STAGE_UPDATE tag at the end.
-    """
+    """Main guidance LLM call. Returns raw response."""
     system_content = GUIDANCE_SYSTEM
     if profile_block:
         system_content += f"\n\n--- STUDENT CONTEXT ---\n{profile_block}"
@@ -403,36 +384,34 @@ def call_guidance_llm(
         return "I'm having a little trouble right now. Could you try again?"
 
 
-# ── Parse LLM response for stage update signal ────────────────────────────────
+# ── Parse stage update signal ─────────────────────────────────────────────────
 
 def parse_stage_update(raw_answer: str) -> tuple[str, dict | None]:
     """
-    Check if the LLM included a STAGE_UPDATE signal at the end.
+    Check if LLM included a STAGE_UPDATE signal.
     Returns (clean_answer, stage_update_prompt_dict or None).
     """
-    stage_update_prompt = None
+    if "STAGE_UPDATE:" not in raw_answer:
+        return raw_answer, None
 
-    if "STAGE_UPDATE:" in raw_answer:
-        parts     = raw_answer.split("STAGE_UPDATE:")
-        answer    = parts[0].strip()
-        new_stage = parts[1].strip().split()[0].lower() if len(parts) > 1 else ""
+    parts     = raw_answer.split("STAGE_UPDATE:")
+    answer    = parts[0].strip()
+    new_stage = parts[1].strip().split()[0].lower() if len(parts) > 1 else ""
 
-        valid_stages = {"post_results", "post_placement", "pre_exam"}
-        if new_stage in valid_stages:
-            stage_labels = {
-                "post_results":   "After Exams (Stage 2)",
-                "post_placement": "After Placement (Stage 3)",
-                "pre_exam":       "Before Exams (Stage 1)",
-            }
-            stage_update_prompt = {
-                "should_prompt":  True,
-                "detected_stage": new_stage,
-                "message":        f"It looks like you may now be in {stage_labels.get(new_stage, new_stage)}.",
-            }
-    else:
-        answer = raw_answer
+    valid = {"post_results", "post_placement", "pre_exam"}
+    if new_stage not in valid:
+        return answer, None
 
-    return answer, stage_update_prompt
+    labels = {
+        "post_results":   "After Exams (Stage 2)",
+        "post_placement": "After Placement (Stage 3)",
+        "pre_exam":       "Before Exams (Stage 1)",
+    }
+    return answer, {
+        "should_prompt":  True,
+        "detected_stage": new_stage,
+        "message":        f"It looks like you may now be in {labels.get(new_stage, new_stage)}.",
+    }
 
 
 # ── Save history ──────────────────────────────────────────────────────────────
@@ -446,9 +425,7 @@ def _save_history(user_id, question, answer, mode="general", metadata=None):
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def query_rag(req: QueryRequest) -> dict:
-    """
-    Main RAG pipeline. See module docstring for full flow.
-    """
+    """Main RAG pipeline."""
     start_time = time.time()
     question   = req.question
     user_id    = req.user_id
@@ -470,7 +447,7 @@ def query_rag(req: QueryRequest) -> dict:
             except Exception as e:
                 print(f"Warning: profile load failed: {e}", flush=True)
 
-        # ── 2. Onboarding if user has no stage set ────────────────────────────
+        # ── 2. Onboarding if user has no stage ────────────────────────────────
         if user_id and profile_is_incomplete(profile_data) and not is_onboarding_complete(user_id):
             onboarding_resp = process_onboarding_turn(user_id, question)
             if onboarding_resp:
@@ -485,23 +462,16 @@ def query_rag(req: QueryRequest) -> dict:
             except Exception as e:
                 print(f"Warning: history load failed: {e}", flush=True)
 
-        # ── 4. Rewrite query → Pinecone search term ───────────────────────────
-        search_term = rewrite_query(question, history)
+        # ── 4. Single routing call — decides search strategy ──────────────────
+        route = route_query(question, history)
 
-        # ── 5. Pinecone retrieval (CBC curriculum documents) ──────────────────
-        docs_with_scores = []
-        if search_term:
-            docs_with_scores = retrieve_documents(search_term, k=5)
-        print(f"DEBUG: {len(docs_with_scores)} docs from Pinecone for '{search_term}'", flush=True)
+        # ── 5. Pinecone search (CBC curriculum docs) ──────────────────────────
+        docs_with_scores = run_pinecone_search(route.get("pinecone_term", ""))
 
-        # ── 6. PostgreSQL school data if question is about schools ─────────────
-        school_block = ""
-        if is_school_question(question, history):
-            print("DEBUG: School question detected — querying PostgreSQL", flush=True)
-            school_block = fetch_school_data(question)
-            print(f"DEBUG: School data: {school_block[:100]}...", flush=True)
+        # ── 6. PostgreSQL school query if needed ──────────────────────────────
+        school_block = run_school_query(route)
 
-        # ── 7. Build context blocks ───────────────────────────────────────────
+        # ── 7. Build context ──────────────────────────────────────────────────
         profile_block    = format_profile_block(profile_data, stage)
         docs_block       = format_docs_block(docs_with_scores)
         history_messages = format_history_for_llm(history)
@@ -515,14 +485,11 @@ def query_rag(req: QueryRequest) -> dict:
             history_messages = history_messages,
         )
 
-        # ── 9. Parse stage update signal from LLM response ───────────────────
+        # ── 9. Parse stage update signal ──────────────────────────────────────
         answer, stage_update_prompt = parse_stage_update(raw_answer)
 
-        # If LLM detected a stage change, update DB silently
         if stage_update_prompt and user_id:
-            new_stage = stage_update_prompt.get("detected_stage")
-            if new_stage:
-                update_stage_in_db(user_id, new_stage)
+            update_stage_in_db(user_id, stage_update_prompt["detected_stage"])
 
         # ── 10. Save to DB ────────────────────────────────────────────────────
         _save_history(user_id, question, answer, "general", {
@@ -541,15 +508,17 @@ def query_rag(req: QueryRequest) -> dict:
         except Exception:
             pass
 
+        print(f"DEBUG: Done in {elapsed_ms}ms — {len(docs_with_scores)} docs, school_block={bool(school_block)}", flush=True)
+
         return {
-            "question":           question,
-            "answer":             answer,
-            "mode":               "personalized" if user_id else "general",
+            "question":            question,
+            "answer":              answer,
+            "mode":                "personalized" if user_id else "general",
             "stage_update_prompt": stage_update_prompt,
             "metadata": {
                 "source_folder":  "pinecone+db" if school_block else "pinecone",
                 "documents_used": len(docs_with_scores),
-                "search_term":    search_term,
+                "search_term":    route.get("pinecone_term"),
                 "stage":          stage,
                 "school_query":   bool(school_block),
             },
