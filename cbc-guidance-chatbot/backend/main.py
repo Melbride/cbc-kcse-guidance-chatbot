@@ -33,24 +33,24 @@ UPLOADED_DOCUMENTS_DIR = BASE_DIR / "uploaded_documents"
 #initialize fastapi application
 app = FastAPI(title="CBC/KCSE Guidance Chatbot")
 
-# FIXED: Middleware must come BEFORE any route definitions
+#Middleware must come BEFORE any route definitions
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"]
 )
 
 # Preload embeddings and Pinecone at startup so first request is fast
 @app.on_event("startup")
 async def startup_event():
-    print("=== Starting up CBC Guidance Chatbot ===", flush=True)
+    print("Starting up CBC Guidance Chatbot", flush=True)
     from rag.document_search import get_embeddings, get_vectorstore
     from rag.rag_query import get_groq_client
-    get_embeddings()    # Connect to HuggingFace API
-    get_vectorstore()   # Connect to Pinecone
-    get_groq_client()   # Initialize Groq client
-    print("=== Ready. Server accepting requests. ===", flush=True)
+    get_embeddings()
+    get_vectorstore()
+    get_groq_client()
+    print("Ready. Server accepting requests.", flush=True)
 
 
 @app.on_event("shutdown")
@@ -88,29 +88,32 @@ def require_admin(request: Request):
 
 
 #health check endpoint
-@app.get("/")
-def health_check():
-    return {"status": "healthy", "service": "CBC/KCSE Guidance Chatbot"}
+@app.get("/")  
+def health_check():  
+    return {"status": "healthy", "service": "CBC/KCSE Guidance Chatbot"}  
 
 
-# FIXED: Single /query/ endpoint (duplicate removed)
+#Single /query/ endpoint 
 @app.post("/query/")
 def query_endpoint(req: QueryRequest):
     """
     Unified RAG endpoint.
     If user_id is provided, personalization is automatically applied inside query_rag.
     """
+    #handles the main RAG query endpoint for chatbot responses
     print("=== /query/ endpoint hit ===", flush=True)
-    result = query_rag(req)
+    #processes the query using RAG system
+    result = query_rag(req)  
     print(f"[QUERY ENDPOINT] Question: {getattr(req, 'question', None)}", flush=True)
     print(f"[QUERY ENDPOINT] Answer: {result.get('answer', None)}", flush=True)
     return result
 
 
-# --- Admin Documents Endpoints ---
+#Admin Documents Endpoints 
 @app.get("/documents")
 def list_documents(request: Request, page: int = 1, page_size: int = 20):
-    require_admin(request)
+    #this code lists all uploaded documents with pagination for admin
+    require_admin(request)  
     if not DOCUMENT_INDEX_PATH.exists():
         return {
             "documents": [],
@@ -143,12 +146,14 @@ def list_documents(request: Request, page: int = 1, page_size: int = 20):
 @app.post("/documents")
 async def upload_document(request: Request, file: UploadFile = File(...)):
     """Upload a new document and add to index"""
-    require_admin(request)
+    #Handles document upload and processing for the RAG system and admin accesss
+    require_admin(request)  
     try:
-        from rag.document_loader import load_pdf, load_docx
+        #Imports document loaders
+        from rag.document_loader import load_pdf, load_docx  
         
         # Save uploaded file
-        UPLOADED_DOCUMENTS_DIR.mkdir(exist_ok=True)
+        UPLOADED_DOCUMENTS_DIR.mkdir(exist_ok=True)  
         file_path = UPLOADED_DOCUMENTS_DIR / file.filename
         
         with open(file_path, "wb") as f:
@@ -157,10 +162,10 @@ async def upload_document(request: Request, file: UploadFile = File(...)):
         
         # Extract text based on file type
         if file.filename.lower().endswith(".pdf"):
-            text_content = load_pdf(file_path)
+            text_content = load_pdf(file_path) 
             doc_type = "pdf"
         elif file.filename.lower().endswith(".docx"):
-            text_content = load_docx(file_path)
+            text_content = load_docx(file_path)  
             doc_type = "docx"
         else:
             raise HTTPException(status_code=400, detail="Only PDF and DOCX files are supported")
@@ -185,19 +190,22 @@ async def upload_document(request: Request, file: UploadFile = File(...)):
         with open(DOCUMENT_INDEX_PATH, "w", encoding="utf-8") as f:
             json.dump(docs_metadata, f, indent=2)
         
-        # Ingest to Pinecone
+        #Ingest to Pinecone
         try:
             from langchain_huggingface import HuggingFaceEmbeddings
             from langchain_pinecone import PineconeVectorStore
             from langchain.text_splitter import RecursiveCharacterTextSplitter
             from langchain.schema import Document
             
+            #Set up the vector embedding and chunking system
             embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
             splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-            chunks = splitter.split_text(text_content)
+            #splits text into chunks
+            chunks = splitter.split_text(text_content)  
             
             docs = [Document(page_content=chunk, metadata={"source": file.filename}) for chunk in chunks]
             
+            #creates and stores vectors in Pinecone
             vectorstore = PineconeVectorStore.from_documents(
                 documents=docs,
                 embedding=embeddings,
@@ -252,19 +260,21 @@ def delete_document(doc_path: str, request: Request):
         raise HTTPException(status_code=500, detail=f"Failed to delete document: {str(e)}")
 
 
-# --- Admin User Management Endpoints ---
+#Admin User Management Endpoints 
 @app.put("/users/{user_id}/status")
 def toggle_user_status(user_id: str, active: bool, request: Request):
     """Activate or deactivate a user"""
-    require_admin(request)
+    #this code allows admins to activate or deactivate user accounts
+    require_admin(request) 
     try:
-        db = get_db()
+        db = get_db()  
         with db.conn.cursor() as cur:
             cur.execute(
                 "UPDATE users SET active = %s, last_active = %s WHERE user_id = %s",
                 (active, datetime.now() if active else None, user_id)
             )
-            db.conn.commit()
+            #saves the changes
+            db.conn.commit()  
         return {"success": True, "message": f"User {'activated' if active else 'deactivated'} successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update user status: {str(e)}")
@@ -283,7 +293,7 @@ def delete_user(user_id: str, request: Request):
         raise HTTPException(status_code=500, detail=f"Failed to delete user: {str(e)}")
 
 
-# --- Admin Stats Endpoint ---
+#Admin Stats Endpoint 
 @app.get("/admin/stats")
 def admin_stats(request: Request):
     require_admin(request)
@@ -296,11 +306,12 @@ def admin_stats(request: Request):
     return stats
 
 
-# --- Privacy-First Analytics Endpoints ---
+#Privacy-First Analytics Endpoints
 @app.get("/admin/analytics/query-stats")
 def get_query_analytics(request: Request, days: int = 7):
     """Get aggregated query analytics - no PII exposed"""
-    require_admin(request)
+    #provides analytics without exposing personal information
+    require_admin(request)  
     return get_analytics().get_query_analytics(days)
 
 @app.get("/admin/analytics/documents")
@@ -334,7 +345,7 @@ def get_audit_log(request: Request, admin_id: Optional[str] = None, days: int = 
     return {"audit_log": get_analytics().get_admin_audit_log(admin_id, days, limit)}
 
 
-# --- Recent Questions Endpoint ---
+#Recent Questions Endpoint 
 @app.get("/recent-questions")
 def recent_questions(request: Request, limit: int = 20):
     require_admin(request)
@@ -369,6 +380,7 @@ def recent_questions(request: Request, limit: int = 20):
 #user management endpoints
 @app.post("/users/")
 def create_user(user: UserCreate):
+    #creates a new user in the system
     return get_db().create_user(name=user.name, email=user.email)
 
 @app.get("/users/")
@@ -392,6 +404,7 @@ def get_user_stage(user_id: str):
 @app.post("/user-profile/{user_id}")
 def save_user_profile(user_id: str, profile: dict):
     """Save or update user profile from frontend"""
+    #save user profile with stage mapping for CBC journey
     stage_mapping = {
         'before_exam': 'pre_exam',
         'after_exam': 'post_results',
@@ -518,14 +531,17 @@ def get_schools(
 #pathway recommendation endpoint
 @app.post("/pathway-recommendation/")
 def get_pathway_recommendation(request: dict):
+    #this code provides personalized pathway recommendations based on user profile
     user_id = request.get("user_id")
     if not user_id:
         return {"error": "user_id is required"}
-    profile_data = get_db().get_profile(user_id)
+        #code retrieves user profile
+    profile_data = get_db().get_profile(user_id)  
     if not profile_data:
         return {"error": "Profile not found"}
     user_profile = UserProfile(**profile_data)
-    recommendation = get_pathway_recommender().recommend(user_profile)
+    #code generates recommendation
+    recommendation = get_pathway_recommender().recommend(user_profile)  
     return {
         "user_id": user_id,
         "recommendation": recommendation,

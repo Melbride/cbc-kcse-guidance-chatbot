@@ -2,7 +2,7 @@
 import os
 import psycopg2
 
-# --- Ensure .env is loaded for all entry points ---
+#Ensure .env is loaded for all entry points 
 def _load_dotenv():
     candidate_paths = [
         os.path.join(os.path.dirname(__file__), ".env"),

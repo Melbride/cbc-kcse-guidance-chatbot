@@ -1,4 +1,4 @@
-# search.py  (improved)
+# search.py  
 """
 Search and recommendation logic for the KCSE guidance chatbot.
 
@@ -24,10 +24,6 @@ from recommendation.conversation_context import update_conversation_context
 load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-# ---------------------------------------------------------------------------
-# Grade filtering helpers
-# ---------------------------------------------------------------------------
-
 GRADE_ORDER = ["A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "D-", "E"]
 
 def grade_to_int(grade: str) -> int:
@@ -36,7 +32,8 @@ def grade_to_int(grade: str) -> int:
     try:
         return GRADE_ORDER.index(grade)
     except ValueError:
-        return 999  # unknown grade → don't filter out
+        # unknown grade → don't filter out
+        return 999  
 
 def student_qualifies(student_grade: str, cutoff: str) -> bool:
     """
@@ -65,13 +62,10 @@ def student_qualifies(student_grade: str, cutoff: str) -> bool:
     cutoff_rank = grade_to_int(cutoff)
     if cutoff_rank == 999:
         return True  # can't parse cutoff → show it anyway
-    return student_rank <= cutoff_rank  # lower index = better grade
+    return student_rank <= cutoff_rank  
 
 
-# ---------------------------------------------------------------------------
 # Profile normalisation
-# ---------------------------------------------------------------------------
-
 def normalize_user_profile(user_profile):
     profile = user_profile or {}
     extra_data = profile.get("extra_data", {}) if isinstance(profile, dict) else {}
@@ -92,10 +86,7 @@ def normalize_user_profile(user_profile):
     return normalized
 
 
-# ---------------------------------------------------------------------------
-# DB search
-# ---------------------------------------------------------------------------
-
+#DB search
 def run_database_search(search_term: str):
     """Run semantic_search.py as a subprocess and return structured rows."""
     if not search_term or not search_term.strip():
@@ -160,7 +151,8 @@ def filter_by_grade(rows: list, student_grade: str) -> list:
     SkillBuilding has no grade requirement.
     """
     if not student_grade:
-        return rows  # no grade info → show everything
+        # no grade info → show everything
+        return rows  
 
     filtered = []
     for item in rows:
@@ -172,15 +164,13 @@ def filter_by_grade(rows: list, student_grade: str) -> list:
             if student_qualifies(student_grade, cutoff):
                 filtered.append(item)
         else:
-            filtered.append(item)  # Diploma, Artisan, SkillBuilding always included
+            # Diploma, Artisan, SkillBuilding always included
+            filtered.append(item)  
 
     return filtered
 
 
-# ---------------------------------------------------------------------------
-# Format DB results for the LLM prompt
-# ---------------------------------------------------------------------------
-
+#Format DB results for the LLM prompt
 def format_db_rows_for_prompt(rows: list) -> str:
     if not rows:
         return "No matching records found in the database."
@@ -193,7 +183,7 @@ def format_db_rows_for_prompt(rows: list) -> str:
     lines = []
 
     if "Degree" in by_source:
-        lines.append("=== Degree Programmes ===")
+        lines.append("Degree Programmes")
         for i, item in enumerate(by_source["Degree"][:20], 1):
             data = item.get("data", [])
             if len(data) >= 4:
@@ -204,7 +194,7 @@ def format_db_rows_for_prompt(rows: list) -> str:
         lines.append("")
 
     if "Diploma" in by_source:
-        lines.append("=== Diploma Programmes ===")
+        lines.append("Diploma Programmes")
         for i, item in enumerate(by_source["Diploma"][:15], 1):
             data = item.get("data", [])
             if len(data) >= 3:
@@ -216,7 +206,7 @@ def format_db_rows_for_prompt(rows: list) -> str:
         lines.append("")
 
     if "Artisan" in by_source:
-        lines.append("=== Artisan & Certificate Programmes ===")
+        lines.append("Artisan & Certificate Programmes")
         for i, item in enumerate(by_source["Artisan"][:10], 1):
             data = item.get("data", [])
             if len(data) >= 3:
@@ -227,7 +217,7 @@ def format_db_rows_for_prompt(rows: list) -> str:
         lines.append("")
 
     if "SkillBuilding" in by_source:
-        lines.append("=== Online Courses & Bootcamps ===")
+        lines.append("Online Courses & Bootcamps")
         for i, item in enumerate(by_source["SkillBuilding"][:15], 1):
             data = item.get("data", [])
             if len(data) >= 6:
@@ -241,9 +231,9 @@ def format_db_rows_for_prompt(rows: list) -> str:
                 lines.append(f"   Link: {link}")
         lines.append("")
 
-    # Fallback
+    #Fallback
     if not lines:
-        lines.append("=== Available Programmes ===")
+        lines.append("Available Programmes")
         for i, item in enumerate(rows[:20], 1):
             source = item.get("source", "")
             data   = item.get("data", [])
@@ -265,10 +255,7 @@ def format_history_for_prompt(history: list) -> str:
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# Step 1 — rewrite user message → DB search term
-# ---------------------------------------------------------------------------
-
+#Rewrite user message → DB search term
 REWRITE_SYSTEM = """You extract a short database search term from a student's question.
 Rules:
 - Output ONLY the search term, nothing else.
@@ -308,10 +295,8 @@ def rewrite_query(user_message: str, history: list) -> str:
         return ""
 
 
-# ---------------------------------------------------------------------------
-# Step 2 — build LLM prompt and call Groq
-# ---------------------------------------------------------------------------
 
+#build LLM prompt and call Groq
 ADVISOR_SYSTEM = """You are a warm, knowledgeable KCSE career guidance advisor for Kenyan students.
 
 KENYA GRADING SYSTEM — MEMORISE THIS:
@@ -411,11 +396,7 @@ def call_llm(user_message: str, user_profile: dict, history: list, db_results: l
         print(f"LLM error: {e}")
         return "I'm having a little trouble right now. Could you rephrase your question and I'll do my best to help?"
 
-
-# ---------------------------------------------------------------------------
 # Logging helpers
-# ---------------------------------------------------------------------------
-
 def detect_topic(text):
     text_lower = (text or "").lower()
     topic_map = {
@@ -446,10 +427,7 @@ def log_interaction(conversation_id, user_query, response_text, status):
         print(f"Question log failed: {err}")
 
 
-# ---------------------------------------------------------------------------
 # Main entry point
-# ---------------------------------------------------------------------------
-
 def perform_semantic_search(user_query, user_profile, conversation_id=None, history=None, previous_results=None):
     if isinstance(user_profile, str):
         try:
@@ -459,31 +437,31 @@ def perform_semantic_search(user_query, user_profile, conversation_id=None, hist
     user_profile = normalize_user_profile(user_profile)
     history = history or []
 
-    # Step 1: rewrite query → search term
+    #rewrite query → search term
     search_term = rewrite_query(user_query, history)
     print(f"DEBUG search_term: '{search_term}'")
 
-    # Step 2: search DB
+    #search DB
     if not search_term and previous_results:
         db_results = previous_results
     else:
         db_results = run_database_search(search_term) if search_term else []
     print(f"DEBUG db_results count (raw): {len(db_results)}")
 
-    # Step 3: deduplicate
+    #deduplicate
     db_results = deduplicate_results(db_results)
     print(f"DEBUG db_results count (after dedup): {len(db_results)}")
 
-    # Step 4: filter by student grade
+    #filter by student grade
     student_grade = user_profile.get("mean_grade", "")
     if student_grade:
         db_results = filter_by_grade(db_results, student_grade)
         print(f"DEBUG db_results count (after grade filter): {len(db_results)}")
 
-    # Step 5: LLM response
+    #LLM response
     response_text = call_llm(user_query, user_profile, history, db_results)
 
-    # Step 6: persist context + log
+    #persist context + log
     if conversation_id:
         try:
             update_conversation_context(conversation_id, user_query, response_text)

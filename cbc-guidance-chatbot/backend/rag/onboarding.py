@@ -19,7 +19,7 @@ Design principles:
 from config_loader import get_db
 
 
-# ── Profile completeness ──────────────────────────────────────────────────────
+#Profile completeness 
 
 def profile_is_incomplete(profile_data: dict | None) -> bool:
     """
@@ -31,7 +31,7 @@ def profile_is_incomplete(profile_data: dict | None) -> bool:
     return not profile_data.get("journey_stage")
 
 
-# ── Onboarding state ──────────────────────────────────────────────────────────
+#Onboarding state 
 
 def is_onboarding_complete(user_id: str) -> bool:
     """Check if onboarding has been completed for this user."""
@@ -87,7 +87,7 @@ def update_stage_in_db(user_id: str, stage: str) -> None:
         print(f"Warning: stage update failed: {e}", flush=True)
 
 
-# ── Stage helpers ─────────────────────────────────────────────────────────────
+#Stage helpers
 
 def _stage_from_answer(answer: str) -> str:
     """Map a free-text stage answer to a DB stage value."""
@@ -111,7 +111,7 @@ def _name_token(role: str) -> str:
     return "you" if role == "student" else "your child"
 
 
-# ── Onboarding conversation steps ─────────────────────────────────────────────
+#Onboarding conversation steps
 
 STEPS = [
     {
@@ -165,13 +165,13 @@ def process_onboarding_turn(user_id: str, user_message: str) -> dict | None:
     role       = state.get("role", "student")
     name       = _name_token(role)
 
-    # First turn — ask the first question
+    #First turn — ask the first question
     if step_index == 0:
         state["step"] = 1
         save_onboarding_state(user_id, state)
         return _wrap(STEPS[0]["question"].replace("{name}", name))
 
-    # Process answer to previous step
+    #Process answer to previous step
     prev     = STEPS[step_index - 1]
     prev_key = prev["key"]
     answer   = user_message.strip()

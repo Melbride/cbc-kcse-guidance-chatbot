@@ -33,7 +33,7 @@ def ensure_user_profiles_schema():
                     """)
                     conn.commit()
     except Exception:
-        # Keep startup resilient if the database is unavailable or schema changes are restricted.
+        #Keep startup resilient if the database is unavailable or schema changes are restricted.
         pass
 
 def create_user_profile(profile) -> str:

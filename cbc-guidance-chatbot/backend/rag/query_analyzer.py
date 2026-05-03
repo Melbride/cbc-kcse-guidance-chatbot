@@ -37,7 +37,7 @@ def get_groq_client():
         print(f"Groq client init failed: {e}")
         return None
 
-# ── Load configs and DB-backed data ──────────────────────────────────────────
+#Load configs and DB-backed data
 from config_loader import (
     QUERY_KEYWORDS          as _KW,
     PATHWAY_SUBJECT_PRIORITY,
@@ -45,7 +45,7 @@ from config_loader import (
     load_subjects_from_db,
 )
 
-# Lazy-loaded from PostgreSQL — no hardcoded lists here
+# Lazy-loaded from PostgreSQL 
 _COUNTIES: list[str] = []
 _ALL_SUBJECTS: list[str] = []
 
@@ -82,7 +82,7 @@ _STEM_SUBJECTS: set[str] = set(PATHWAY_SUBJECT_PRIORITY.get("stem", {}).keys())
 _last_pathway_context: Dict[str, Dict[str, Optional[str]]] = {}
 
 
-# ── Module helpers ────────────────────────────────────────────────────────────
+#Module helpers 
 
 def _any_kw(text: str, key: str) -> bool:
     return any(kw in text for kw in _KW[key])
@@ -94,7 +94,7 @@ def _db_result(query_type: str, **kwargs) -> dict:
     return {"query_type": query_type, "source": "database", **kwargs}
 
 
-# ── Main class ────────────────────────────────────────────────────────────────
+#Main class
 
 class QueryAnalyzer:
 
@@ -108,7 +108,7 @@ class QueryAnalyzer:
           3. Simple fallback if LLM is unavailable
           4. Tag as personalized or general
         """
-        _ensure_db_data_loaded()  # ADD THIS LINE
+        _ensure_db_data_loaded()  
         requested_count = self._extract_requested_count(question)
 
         analysis = self._analyze_school_query(question, user_id)
@@ -132,7 +132,7 @@ class QueryAnalyzer:
         )
         return analysis
 
-    # ── Rule-based router ─────────────────────────────────────────────────────
+    #Rule-based router 
 
     def _analyze_school_query(self, question: str, user_id: str = None) -> Optional[Dict]:
         q = question.lower()
@@ -244,7 +244,7 @@ class QueryAnalyzer:
             track_filter=track_filter,
         )
 
-    # ── Extraction helpers ────────────────────────────────────────────────────
+    #Extraction helpers 
 
     def _extract_pathway(self, question: str) -> Optional[str]:
         """
@@ -365,7 +365,7 @@ class QueryAnalyzer:
             term = term.replace(word, "").strip()
         return term
 
-    # ── Secondary routing helpers ─────────────────────────────────────────────
+    #Secondary routing helpers 
 
     def _is_interest_based_school_search(self, q: str) -> bool:
         return (
@@ -381,7 +381,7 @@ class QueryAnalyzer:
             return True
         return False
 
-    # ── LLM classification ────────────────────────────────────────────────────
+    #LLM classification 
 
     def _classify_with_llm(self, question: str) -> Dict:
         """Classify query using Groq for questions that didn't match any rule."""

@@ -39,7 +39,7 @@ vectorstore = PineconeVectorStore.from_documents(
     index_name=PINECONE_INDEX_NAME,
 )
 
-# --- Append metadata to document_index.json ---
+#Append metadata to document_index.json 
 import json
 from pathlib import Path
 

@@ -111,7 +111,7 @@ def main():
         except Exception:
             pass  # Table may not exist yet
 
-    # --- Degree cutoffs ---
+    # Degree cutoffs
     # Only search for degrees when specifically requested
     if any(keyword in query_lower for keyword in degree_keywords):
         all_results += search_table_scored(

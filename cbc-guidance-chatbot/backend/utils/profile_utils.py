@@ -1,6 +1,5 @@
 """
 profile_utils.py
-----------------
 Replaces utils.py. Profile loading, context-string building, and raw
 profile-dict normalisation.
 
@@ -15,7 +14,7 @@ field names or subject names are hardcoded here.
 
 from config_loader import CAREER_SUBJECT_HINTS
 
-# ── Load label maps from career_subject_hints.json ────────────────────────────
+#Load label maps from career_subject_hints.json
 
 # avg score field → "User is strong in X"
 _AVG_STRENGTH_LABELS: dict[str, str] = CAREER_SUBJECT_HINTS.get(
@@ -28,7 +27,7 @@ _INTEREST_LABELS: dict[str, str] = CAREER_SUBJECT_HINTS.get(
 )
 
 
-# ── Profile dict normalisation ────────────────────────────────────────────────
+#Profile dict normalisation
 
 def normalise_profile_dict(profile_row) -> dict:
     """
@@ -80,7 +79,7 @@ def normalise_profile_dict(profile_row) -> dict:
     }
 
 
-# ── Profile context string ────────────────────────────────────────────────────
+#Profile context string
 
 def build_profile_context(profile: dict) -> str:
     """
@@ -134,7 +133,7 @@ def build_profile_context(profile: dict) -> str:
     return "\n".join(context_parts) if context_parts else ""
 
 
-# ── Profile text blob ─────────────────────────────────────────────────────────
+#Profile text blob
 
 def profile_text_blob(profile: dict | None) -> str:
     """
@@ -157,7 +156,7 @@ def profile_text_blob(profile: dict | None) -> str:
     return " ".join(text_parts).lower()
 
 
-# ── Recent history context ────────────────────────────────────────────────────
+#Recent history context
 
 def build_recent_history_context(get_db_fn, user_id: str | None, limit: int = 3) -> str:
     """

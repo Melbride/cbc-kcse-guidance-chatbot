@@ -1,5 +1,3 @@
--- Create tables for KCSE guidance system
--- Execute this in your Supabase SQL editor
 
 CREATE TABLE IF NOT EXISTS degree_cutoffs (
     id SERIAL PRIMARY KEY,

@@ -1,55 +1,50 @@
 // Backend-Connected Functions for CBC Chatbot
 
-const API_BASE = 'https://cbc-kcse-guidance-chatbot.onrender.com';const THEME_KEY = 'uiTheme';
+const API_BASE = 'https://cbc-kcse-guidance-chatbot.onrender.com';  
+const THEME_KEY = 'uiTheme';  
 
+/**
+ * Free chat limit for guest users
+ * @type {number}
+ */
+const FREE_CHAT_LIMIT = 3;  
 
-
-const FREE_CHAT_LIMIT = 3;
-
-
-
-function getGuestChatCount() {
-
-  return parseInt(localStorage.getItem('guestChatCount') || '0', 10);
-
+/**
+ * Retrieves the current guest chat count from localStorage
+ * @returns {number} The current guest chat count
+ */
+function getGuestChatCount() {  
+  return parseInt(localStorage.getItem('guestChatCount') || '0', 10);  
 }
 
-
-
-function incrementGuestChatCount() {
-
-  const count = getGuestChatCount() + 1;
-
-  localStorage.setItem('guestChatCount', count);
-
-  return count;
-
+/**
+ * Increments the guest chat count and saves it to localStorage
+ * @returns {number} The new guest chat count
+ */
+function incrementGuestChatCount() {  
+  const count = getGuestChatCount() + 1;  
+  localStorage.setItem('guestChatCount', count);  
+  return count;  
 }
 
-
-
-function isGuestLimitReached() {
-
-  const userId = localStorage.getItem('userId');
-
-  if (userId) return false; // logged in users have no limit
-
-  return getGuestChatCount() >= FREE_CHAT_LIMIT;
-
+/**
+ * Checks if the guest user has reached the chat limit
+ * @returns {boolean} True if the limit is reached, false otherwise
+ */
+function isGuestLimitReached() {  // this code checks if guest user has reached chat limit
+  const userId = localStorage.getItem('userId');  // this code gets user ID from storage
+  if (userId) return false; // logged in users have no limit  // this code bypasses limit for logged-in users
+  return getGuestChatCount() >= FREE_CHAT_LIMIT;  // this code checks if limit is reached
 }
 
-
-
-function showGuestLimitModal() {
-
-  const existing = document.getElementById('guest-limit-modal');
-
-  if (existing) return;
-
-
+/**
+ * Shows the guest limit modal if the limit is reached
+ */
+function showGuestLimitModal() {  // this code shows the guest limit modal
+  const existing = document.getElementById('guest-limit-modal');  // this code checks if modal already exists
+  if (existing) return;  // this code prevents duplicate modals
 
   const modal = document.createElement('div');
-
   modal.id = 'guest-limit-modal';
 
   modal.style.cssText = `

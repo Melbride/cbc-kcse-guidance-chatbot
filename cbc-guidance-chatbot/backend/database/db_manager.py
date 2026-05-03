@@ -11,13 +11,27 @@ import uuid
 from threading import Lock
 
 #load environment variables
-load_dotenv()
+load_dotenv()  
 
-_db_singleton = None
-_db_lock = Lock()
+_db_singleton = None  
+_db_lock = Lock  
 
+"""
+========================================================
+Database Manager Class
+========================================================
+This class manages all database operations for the CBC Guidance System.
+It handles user management, conversation history, CBC results, and school placements.
+It also provides caching for query optimization.
+"""
 
 class DatabaseManager:
+    """
+    =====================================================
+    Connection Management
+    =====================================================
+    The following methods manage the database connection.
+    """
     def _connect(self):
         """Create a fresh PostgreSQL connection using current environment settings."""
         database_url = os.getenv("DATABASE_URL")

@@ -1,4 +1,5 @@
 # --- Get User Profile by Email ---
+#import required modules for KCSE guidance chatbot
 from fastapi import Query, Request
 import traceback
 import fastapi
@@ -10,15 +11,24 @@ from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+#import user database operations
 from user.database import create_user_profile, get_user_profile_by_email, update_user_profile, delete_user_profile, list_all_users, ensure_user_profiles_schema
 import bcrypt
+
+#import feedback management
 from user.feedback import store_feedback, list_feedback
+
+#import admin content management
 from user.admin_store import create_announcement, list_announcements, list_support_content, create_support_content, delete_support_content, update_support_content, list_question_logs, summarize_question_logs, update_question_review, create_question_log, question_status_summary
 from search.search import perform_semantic_search
 from career import router as career_router
 from recommendation.conversation_context import list_recent_questions, list_top_questions
+#configure logging and FastAPI application
 logging.basicConfig(level=logging.INFO, force=True)
 app = FastAPI()
+
+#configure CORS middleware for cross-origin requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -26,15 +36,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+#set admin authentication token and ensure database schema
 ADMIN_TOKEN = "kcse_admin_token_2024"
 ensure_user_profiles_schema()
 
-# Health check endpoint
+#health check endpoint
 @app.get("/")
 def health_check():
     return {"status": "healthy", "service": "KCSE Guidance Chatbot", "version": "1.0"}
 
-# Add a global exception handler for better error logging
+#global exception handler for better error logging
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     print("\n--- Exception Occurred ---")
@@ -47,7 +59,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": "Internal Server Error", "error": str(exc)},
     )
 
-# --- Request Models ---
+#request models
 class UserUpdateRequest(BaseModel):
     name: str
     email: str
@@ -55,6 +67,7 @@ class UserUpdateRequest(BaseModel):
     interests: str = ""
     career_goals: str = ""
 
+#user profile endpoints
 @app.get("/user/profile")
 def get_user_profile(email: str = Query(...)):
     user = get_user_profile_by_email(email)
@@ -64,28 +77,18 @@ def get_user_profile(email: str = Query(...)):
 
 @app.put("/user/profile")
 def update_user_profile_endpoint(request: UserUpdateRequest):
-    # Check if user exists
     existing_user = get_user_profile_by_email(request.email)
     if not existing_user:
         raise HTTPException(status_code=404, detail="User not found.")
     
-    # Update user profile
     updated_user = update_user_profile(request.email, request)
     if not updated_user:
         raise HTTPException(status_code=500, detail="Failed to update profile.")
     
     return {"message": "Profile updated successfully.", "user": updated_user}
-# Add CORS middleware to allow frontend requests
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["*"],  # Or specify your frontend URL instead of "*"
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
 app.include_router(career_router)
 
-# --- User Signup ---
+#user authentication models
 class UserSignupRequest(BaseModel):
     name: str
     email: str
@@ -96,6 +99,7 @@ class UserSignupRequest(BaseModel):
     subjects: list = []
     extra_data: dict = {}
 
+#user signup endpoint
 @app.post("/signup")
 def signup(request: UserSignupRequest):
     if get_user_profile_by_email(request.email):
@@ -103,19 +107,16 @@ def signup(request: UserSignupRequest):
     user_id = create_user_profile(request)
     return {"user_id": user_id, "message": "Signup successful."}
 
-# --- User Signin ---
 class UserSigninRequest(BaseModel):
     email: str
     password: str
 
-
+#user signin endpoint
 @app.post("/signin")
 def signin(request: UserSigninRequest):
     user = get_user_profile_by_email(request.email)
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
-    # Password hash check
-    # Fetch hashed password from DB
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cur:
@@ -130,7 +131,7 @@ def signin(request: UserSigninRequest):
         raise HTTPException(status_code=401, detail="Incorrect password.")
     return {"user_id": user["user_id"], "message": "Signin successful."}
 
-# --- Admin Login ---
+#admin authentication models
 class AdminSigninRequest(BaseModel):
     email: str
     password: str
@@ -149,6 +150,7 @@ class QuestionReviewRequest(BaseModel):
     reviewed: bool = True
     review_note: str = ""
 
+#admin utility functions
 def require_admin_token(authorization: str = Header(default="")):
     expected_value = f"Bearer {ADMIN_TOKEN}"
     if authorization != expected_value:
@@ -432,7 +434,7 @@ class SearchRequest(BaseModel):
     user_profile: str = ""
     conversation_id: str = ""
     history: list = []
-    previous_results: list = []  # add this
+    previous_results: list = []  
 
 @app.post("/search")
 def semantic_search(request: SearchRequest):
@@ -470,5 +472,5 @@ def semantic_search(request: SearchRequest):
 # Server startup
 if __name__ == "__main__":
     import uvicorn
-    print("🚀 Starting KCSE Server on http://127.0.0.1:8000")
+    print("Starting KCSE Server on http://127.0.0.1:8000")
     uvicorn.run(app, host="127.0.0.1", port=8000)

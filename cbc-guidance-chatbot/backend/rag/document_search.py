@@ -2,7 +2,7 @@
 document_search.py
 ------------------
 Handles two things only:
-  1. Embeddings via HuggingFace Inference API (no torch, no local model)
+  1. Embeddings via HuggingFace Inference API 
   2. Pinecone vector retrieval via LangChain
 
 The LLM lives in rag_query.py — not here.
@@ -26,7 +26,7 @@ _VECTORSTORE = None
 print(f"LOADING document_search from: {__file__}", flush=True)
 
 
-# ── Embeddings ────────────────────────────────────────────────────────────────
+#Embeddings 
 
 class _FallbackEmbeddings:
     """Hash-based fallback — always works, no network needed."""
@@ -107,7 +107,7 @@ def get_embeddings():
     return _EMBEDDINGS
 
 
-# ── Pinecone vector store ─────────────────────────────────────────────────────
+#Pinecone vector store
 
 def get_vectorstore():
     """Singleton Pinecone vector store. Called at startup."""

@@ -1,6 +1,5 @@
 """
 school_queries.py
------------------
 All school/subject database query handlers and conversation-continuation logic.
 No LLM calls — pure DB lookups and response formatting.
 
@@ -37,7 +36,7 @@ _subject_combo_paging_context = {}
 _last_school_query: dict[str, dict] = {}
 
 
-# ── Main dispatcher ───────────────────────────────────────────────────────────
+#Main dispatcher
 
 def handle_school_query(
     analysis: dict,

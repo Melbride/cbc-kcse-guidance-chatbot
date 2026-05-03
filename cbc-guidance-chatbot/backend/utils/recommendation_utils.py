@@ -1,6 +1,5 @@
 """
 recommendation_utils.py
------------------------
 Subject-combination scoring and recommendation helpers.
 All functions are pure — no DB calls, no LLM calls.
 
@@ -29,7 +28,7 @@ import os
 import json
 from config_loader import PATHWAY_SUBJECT_PRIORITY, CAREER_SUBJECT_HINTS
 
-# ── Load configs ──────────────────────────────────────────────────────────────
+#Load configs
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _BACKEND_DIR = os.path.dirname(_BASE_DIR)
@@ -49,7 +48,7 @@ _INTEREST_LABELS: dict[str, str] = CAREER_SUBJECT_HINTS.get(
     "interest_field_to_label", {}
 )
 
-# ── Derive competency subject sets from pathway_subject_priority.json ─────────
+#Derive competency subject sets from pathway_subject_priority.json
 # No subject names written in this file — all derived from the JSON at load time.
 
 def _high_priority_subjects(pathway: str, min_weight: int = 4) -> set[str]:
@@ -66,7 +65,7 @@ _COLLABORATION_SUBJECTS: set[str] = (
 )
 
 
-# ── Low-level helpers ─────────────────────────────────────────────────────────
+#Low-level helpers
 
 def normalize_pathway_name(pathway: str) -> str:
     """Normalize pathway labels for internal matching."""
@@ -114,7 +113,7 @@ def _get_track_description(normalized_pathway: str, track_name: str) -> str | No
     return pathway_tracks.get("default")
 
 
-# ── Scoring ───────────────────────────────────────────────────────────────────
+#Scoring
 
 def _base_combination_score(combo: str, pathway: str) -> tuple[int, int, str]:
     """
@@ -171,7 +170,7 @@ def score_combination_for_user(
     high_priority = {s for s, w in pathway_priority.items() if w >= 4}
     profile_bonus = 0
 
-    # ── 1. Academic average bonuses ───────────────────────────────────────────
+    #1. Academic average bonuses
     strong_avg_count = sum(
         1 for f in _AVG_STRENGTH_LABELS
         if (profile.get(f) or 0) >= 70
@@ -179,14 +178,14 @@ def score_combination_for_user(
     if strong_avg_count > 0:
         profile_bonus += strong_avg_count * len(subjects & high_priority)
 
-    # ── 2. Career interest alignment ──────────────────────────────────────────
+    #2. Career interest alignment
     for interest_field, career_keyword in _INTEREST_TO_CAREER_KEYWORD.items():
         if (profile.get(interest_field) or 0) >= 4:
             if _CAREER_TO_PATHWAY.get(career_keyword) == normalized_pathway:
                 profile_bonus += 3
                 break
 
-    # ── 3. Competency bonuses ─────────────────────────────────────────────────
+    #3. Competency bonuses
     if (profile.get("problem_solving_level") or 0) >= 4:
         profile_bonus += len(subjects & high_priority)
 
@@ -199,7 +198,7 @@ def score_combination_for_user(
     if (profile.get("collaboration_level") or 0) >= 4:
         profile_bonus += len(subjects & _COLLABORATION_SUBJECTS)
 
-    # ── 4. Pathway recommendation match ──────────────────────────────────────
+    #4. Pathway recommendation match
     recommended = (pathway_recommendation or {}).get("pathway", "").strip().lower()
     if recommended and recommended == normalized_pathway:
         profile_bonus += 3
@@ -207,7 +206,7 @@ def score_combination_for_user(
     return (base_score + profile_bonus, priority_subject_count, combo_text)
 
 
-# ── Response builders ─────────────────────────────────────────────────────────
+#Response builders
 
 def build_best_combination_intro(
     pathway: str,

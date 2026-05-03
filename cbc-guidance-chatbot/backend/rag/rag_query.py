@@ -1,6 +1,5 @@
 """
 rag_query.py
-------------
 Clean RAG pipeline. No hardcoded keyword detection. No intent routing.
 The LLM handles all intelligence.
 
@@ -42,8 +41,7 @@ from utils.history_utils import save_conversation_history_safe
 from analytics.analytics import AnalyticsManager
 import time
 
-# ── Singletons ────────────────────────────────────────────────────────────────
-
+#Singletons
 _groq_client = None
 _analytics   = None
 
@@ -72,7 +70,7 @@ def get_pathway_recommender():
     return PathwayRecommender()
 
 
-# ── Prompts ───────────────────────────────────────────────────────────────────
+# Prompts
 
 # Single routing call — decides BOTH what to search in Pinecone AND
 # whether to query the school database, in one LLM call.
@@ -154,7 +152,7 @@ CONVERSATION STYLE:
 """
 
 
-# ── Step 1: Single routing call ───────────────────────────────────────────────
+#Single routing call
 
 def route_query(user_message: str, history: list) -> dict:
     """
@@ -213,7 +211,7 @@ def route_query(user_message: str, history: list) -> dict:
         return defaults
 
 
-# ── Step 2a: Pinecone retrieval ───────────────────────────────────────────────
+#Pinecone retrieval 
 
 def run_pinecone_search(pinecone_term: str) -> list:
     """Search Pinecone for CBC curriculum documents."""
@@ -224,7 +222,7 @@ def run_pinecone_search(pinecone_term: str) -> list:
     return docs
 
 
-# ── Step 2b: PostgreSQL school query ─────────────────────────────────────────
+#PostgreSQL school query 
 
 def run_school_query(route: dict) -> str:
     """
@@ -277,7 +275,7 @@ def run_school_query(route: dict) -> str:
         return "School data is temporarily unavailable."
 
 
-# ── Context formatters ────────────────────────────────────────────────────────
+#Context formatters 
 
 def format_profile_block(profile: dict | None, stage: str | None) -> str:
     """Build a concise student profile block for the LLM."""
@@ -353,7 +351,7 @@ def format_history_for_llm(history: list) -> list:
     return messages
 
 
-# ── Step 3: Main LLM guidance call ───────────────────────────────────────────
+#Main LLM guidance call
 
 def call_guidance_llm(
     user_message: str,
@@ -388,7 +386,7 @@ def call_guidance_llm(
         return "I'm having a little trouble right now. Could you try again?"
 
 
-# ── Parse stage update signal ─────────────────────────────────────────────────
+#Parse stage update signal
 
 def parse_stage_update(raw_answer: str) -> tuple[str, dict | None]:
     """
@@ -418,7 +416,7 @@ def parse_stage_update(raw_answer: str) -> tuple[str, dict | None]:
     }
 
 
-# ── Save history ──────────────────────────────────────────────────────────────
+#Save history
 
 def _save_history(user_id, question, answer, mode="general", metadata=None):
     save_conversation_history_safe(
@@ -426,7 +424,7 @@ def _save_history(user_id, question, answer, mode="general", metadata=None):
     )
 
 
-# ── Main entry point ──────────────────────────────────────────────────────────
+#Main entry point
 
 def query_rag(req: QueryRequest) -> dict:
     """Main RAG pipeline."""
@@ -437,7 +435,7 @@ def query_rag(req: QueryRequest) -> dict:
     print(f"=== RAG QUERY === Q: {question[:80]} | User: {user_id}", flush=True)
 
     try:
-        # ── 1. Load profile and stage ─────────────────────────────────────────
+        #Load profile and stage 
         profile_data = None
         stage        = None
 
@@ -451,14 +449,14 @@ def query_rag(req: QueryRequest) -> dict:
             except Exception as e:
                 print(f"Warning: profile load failed: {e}", flush=True)
 
-        # ── 2. Onboarding if user has no stage ────────────────────────────────
+        #Onboarding if user has no stage 
         if user_id and profile_is_incomplete(profile_data) and not is_onboarding_complete(user_id):
             onboarding_resp = process_onboarding_turn(user_id, question)
             if onboarding_resp:
                 _save_history(user_id, question, onboarding_resp["answer"], "onboarding")
                 return onboarding_resp
 
-        # ── 3. Load conversation history ──────────────────────────────────────
+        #Load conversation history
         history = []
         if user_id:
             try:
@@ -466,21 +464,21 @@ def query_rag(req: QueryRequest) -> dict:
             except Exception as e:
                 print(f"Warning: history load failed: {e}", flush=True)
 
-        # ── 4. Single routing call — decides search strategy ──────────────────
+        #Single routing call — decides search strategy 
         route = route_query(question, history)
 
-        # ── 5. Pinecone search (CBC curriculum docs) ──────────────────────────
+        #Pinecone search (CBC curriculum docs) 
         docs_with_scores = run_pinecone_search(route.get("pinecone_term", ""))
 
-        # ── 6. PostgreSQL school query if needed ──────────────────────────────
+        #PostgreSQL school query if needed 
         school_block = run_school_query(route)
 
-        # ── 7. Build context ──────────────────────────────────────────────────
+        #Build context 
         profile_block    = format_profile_block(profile_data, stage)
         docs_block       = format_docs_block(docs_with_scores)
         history_messages = format_history_for_llm(history)
 
-        # ── 8. Generate guidance response ─────────────────────────────────────
+        #Generate guidance response 
         raw_answer = call_guidance_llm(
             user_message     = question,
             profile_block    = profile_block,
@@ -489,13 +487,13 @@ def query_rag(req: QueryRequest) -> dict:
             history_messages = history_messages,
         )
 
-        # ── 9. Parse stage update signal ──────────────────────────────────────
+        #Parse stage update signal
         answer, stage_update_prompt = parse_stage_update(raw_answer)
 
         if stage_update_prompt and user_id:
             update_stage_in_db(user_id, stage_update_prompt["detected_stage"])
 
-        # ── 10. Save to DB ────────────────────────────────────────────────────
+        #Save to DB 
         _save_history(user_id, question, answer, "general", {
             "source_folder":    "pinecone+db" if school_block else "pinecone",
             "confidence_score": 0.9,
@@ -503,7 +501,7 @@ def query_rag(req: QueryRequest) -> dict:
             "documents_used":   len(docs_with_scores),
         })
 
-        # ── 11. Analytics ─────────────────────────────────────────────────────
+        #Analytics
         elapsed_ms = int((time.time() - start_time) * 1000)
         try:
             get_analytics().log_query(
